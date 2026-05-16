@@ -1,5 +1,3 @@
-# Saint-Pixels
-
 <p align="center">
   <img src="./1180x100title.png" alt="Saint Pixels Title Screen">
 </p>
