@@ -1,11 +1,11 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const path = require('path');
 const crypto = require('crypto');
 
 const app = express();
 const dbFile = path.join(__dirname, 'database.sqlite');
-const db = new sqlite3.Database(dbFile);
+const db = new Database(dbFile);
 const sessions = new Map();
 
 app.use(express.json());
@@ -31,28 +31,29 @@ function getSession(req) {
   return null;
 }
 
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS accounts (
+// Initialize database tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     ip TEXT UNIQUE NOT NULL,
     created_at INTEGER NOT NULL
-  )`);
-});
+  );
 
-db.run(`CREATE TABLE IF NOT EXISTS palette (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  label TEXT NOT NULL,
-  color TEXT NOT NULL
-)`);
+  CREATE TABLE IF NOT EXISTS palette (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    color TEXT NOT NULL
+  );
+`);
 
-db.get('SELECT COUNT(*) AS count FROM palette', (err, row) => {
-  if (err) {
-    console.error('Palette table count failed:', err);
-    return;
-  }
-  if (!row || row.count === 0) {
+// Populate default palette if empty
+try {
+  const countStmt = db.prepare('SELECT COUNT(*) AS count FROM palette');
+  const result = countStmt.get();
+  if (result.count === 0) {
+    const insertStmt = db.prepare('INSERT INTO palette (label, color) VALUES (?, ?)');
     const defaultPalette = [
       ['Black', '000000'],
       ['White', 'ffffff'],
@@ -64,11 +65,14 @@ db.get('SELECT COUNT(*) AS count FROM palette', (err, row) => {
       ['Pink', 'ec4899'],
       ['Light Green', 'a3e635']
     ];
-    const stmt = db.prepare('INSERT INTO palette (label, color) VALUES (?, ?)');
-    defaultPalette.forEach(([label, color]) => stmt.run(label, color));
-    stmt.finalize();
+    const insertMany = db.transaction((colors) => {
+      colors.forEach(([label, color]) => insertStmt.run(label, color));
+    });
+    insertMany(defaultPalette);
   }
-});
+} catch (err) {
+  console.error('Failed to populate default palette:', err);
+}
 
 app.post('/api/register', (req, res) => {
   const { username, password } = req.body || {};
@@ -86,23 +90,27 @@ app.post('/api/register', (req, res) => {
     return res.status(400).json({ error: 'Password must be at least 4 characters.' });
   }
 
-  db.get('SELECT id FROM accounts WHERE ip = ?', [ip], (err, row) => {
-    if (err) return res.status(500).json({ error: 'Database error.' });
-    if (row) return res.status(409).json({ error: 'One account per IP is allowed.' });
+  try {
+    const checkIpStmt = db.prepare('SELECT id FROM accounts WHERE ip = ?');
+    if (checkIpStmt.get(ip)) {
+      return res.status(409).json({ error: 'One account per IP is allowed.' });
+    }
 
-    db.get('SELECT id FROM accounts WHERE username = ?', [username], (err, existing) => {
-      if (err) return res.status(500).json({ error: 'Database error.' });
-      if (existing) return res.status(409).json({ error: 'Username already taken.' });
+    const checkUserStmt = db.prepare('SELECT id FROM accounts WHERE username = ?');
+    if (checkUserStmt.get(username)) {
+      return res.status(409).json({ error: 'Username already taken.' });
+    }
 
-      const hashed = hashPassword(password, username);
-      const createdAt = Date.now();
-      db.run('INSERT INTO accounts (username, password, ip, created_at) VALUES (?, ?, ?, ?)', [username, hashed, ip, createdAt], function (insertErr) {
-        if (insertErr) return res.status(500).json({ error: 'Could not create account.' });
-        const token = createSession(username);
-        return res.json({ username, token });
-      });
-    });
-  });
+    const hashed = hashPassword(password);
+    const createdAt = Date.now();
+    const insertStmt = db.prepare('INSERT INTO accounts (username, password, ip, created_at) VALUES (?, ?, ?, ?)');
+    insertStmt.run(username, hashed, ip, createdAt);
+    const token = createSession(username);
+    return res.json({ username, token });
+  } catch (err) {
+    console.error('Register error:', err);
+    return res.status(500).json({ error: 'Could not create account.' });
+  }
 });
 
 app.post('/api/login', (req, res) => {
@@ -111,14 +119,21 @@ app.post('/api/login', (req, res) => {
     return res.status(400).json({ error: 'Username and password are required.' });
   }
 
-  const passwordHash = hashPassword(password, username);
-
-  db.get('SELECT username, password FROM accounts WHERE username = ? AND password = ?', [username, hash], (err, row) => {
-    if (err) return res.status(500).json({ error: 'Database error.' });
-    if (!row) return res.status(401).json({ error: 'Invalid credentials.' });
+  try {
+    const selectStmt = db.prepare('SELECT username, password FROM accounts WHERE username = ?');
+    const row = selectStmt.get(username);
+    if (!row) {
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+    if (row.password !== hashPassword(password)) {
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    }
     const token = createSession(username);
     return res.json({ username, token });
-  });
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).json({ error: 'Database error.' });
+  }
 });
 
 app.get('/api/me', (req, res) => {
@@ -136,6 +151,22 @@ app.post('/api/logout', (req, res) => {
     sessions.delete(token);
   }
   res.json({ success: true });
+});
+
+app.get('/api/palette', (req, res) => {
+  try {
+    const selectStmt = db.prepare('SELECT id, label, color FROM palette ORDER BY id ASC');
+    const rows = selectStmt.all();
+    const colors = rows.map(row => ({
+      id: row.id,
+      label: row.label,
+      color: row.color
+    }));
+    res.json({ colors });
+  } catch (err) {
+    console.error('Palette fetch error:', err);
+    return res.status(500).json({ error: 'Could not load palette.' });
+  }
 });
 
 app.use((req, res) => {
