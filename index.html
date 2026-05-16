@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Saint Pixels</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="auth-overlay" id="authOverlay">
+    <div class="auth-card">
+      <h2>Saint Pixels</h2>
+      <p>Login or create an account to place pixels on the live board.</p>
+      <label>
+        Username
+        <input type="text" id="authUsername" autocomplete="username" />
+      </label>
+      <label>
+        Password
+        <input type="password" id="authPassword" autocomplete="current-password" />
+      </label>
+      <div class="auth-actions">
+        <button id="authLogin" class="accent" type="button">Login</button>
+        <button id="authRegister" class="accent" type="button">Create account</button>
+      </div>
+      <div class="auth-message" id="authMessage"></div>
+    </div>
+  </div>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <h1>Saint Pixels</h1>
+        <span class="brand-tagline">1920×1080 live canvas</span>
+      </div>
+      <div class="status" role="group" aria-label="Session status">
+        <div class="status-chip status-chip--user">
+          <span class="status-chip__label">User</span>
+          <strong id="current-user" class="status-chip__value">Guest</strong>
+          <button id="logoutButton" class="accent compact" type="button">Logout</button>
+        </div>
+        <div class="status-chip">
+          <span class="status-chip__label">Live</span>
+          <strong id="live-count" class="status-chip__value">1</strong>
+        </div>
+        <div class="status-chip">
+          <span class="status-chip__label">Tool</span>
+          <strong id="current-tool" class="status-chip__value">Brush</strong>
+        </div>
+        <div class="status-chip status-chip--color">
+          <span class="status-chip__label">Color</span>
+          <span id="current-color" class="status-chip__value status-chip__swatch">#000000</span>
+        </div>
+        <div class="status-chip">
+          <span class="status-chip__label">Zoom</span>
+          <strong id="zoom-level" class="status-chip__value">100%</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-grid">
+      <aside class="controls-panel">
+        <section class="panel">
+          <h2>Tools</h2>
+          <div class="tool-list">
+            <button data-tool="brush" class="tool active">Brush</button>
+            <button data-tool="eraser" class="tool">Eraser</button>
+            <button data-tool="eyedropper" class="tool">Eyedropper</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Palette</h2>
+          <div class="palette" id="palette"></div>
+          <div class="palette-actions">
+            <button id="add-color" class="accent">+ Add color</button>
+          </div>
+          <label class="color-picker">
+            Custom color
+            <input id="color" type="color" value="#000000" />
+          </label>
+        </section>
+
+        <section class="panel">
+          <h2>Help</h2>
+          <ul class="help-list">
+            <li>Left click the board to place a pixel</li>
+            <li>Right click a color to remove from your palette</li>
+            <li>Arrow keys move the cursor (hold repeats slowly)</li>
+            <li><kbd>Enter</kbd> places a pixel at the cursor</li>
+            <li>Hold Shift + drag to pan</li>
+            <li>Mouse wheel to zoom (Shift + wheel to pan)</li>
+            <li>Press <kbd>1</kbd> Brush, <kbd>2</kbd> Eraser, <kbd>3</kbd> Eyedropper</li>
+          </ul>
+        </section>
+      </aside>
+
+      <section class="canvas-panel">
+        <div class="canvas-toolbar">
+          <label>Zoom <input id="zoom" type="range" min="5" max="5000" value="100" /></label>
+          <button id="toggle-grid" class="toggle-btn active">Grid</button>
+          <button id="clear-canvas" class="accent">Clear</button>
+          <button id="export-png" class="accent">Export PNG</button>
+        </div>
+
+        <div class="viewport-wrapper">
+          <div class="viewport" id="viewport">
+            <canvas id="canvas"></canvas>
+            <canvas id="overlay"></canvas>
+          </div>
+          <div class="cooldown-bar" id="cooldownBar" role="status" aria-live="polite">
+            <div class="cooldown-bar__track">
+              <div class="cooldown-bar__fill" id="cooldownFill"></div>
+            </div>
+            <span class="cooldown-bar__label" id="cooldownBarLabel">Sign in to place pixels</span>
+          </div>
+        </div>
+
+        <div class="footer-panel">
+          <div>Coords: <span id="coord">—</span></div>
+          <div>Size: 1920 × 1080</div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "saint-pixels",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.2",
+    "sqlite3": "^6.0.1"
+  }
+}
