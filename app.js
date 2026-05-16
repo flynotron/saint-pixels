@@ -382,7 +382,7 @@ function paintPixel(x, y, customSize = pixelSize, customTool = tool, customColor
   bufferCtx.save();
   if (customTool === 'eraser') {
     bufferCtx.globalCompositeOperation = 'destination-out';
-    bufferCtx.fillStyle = 'rgba(0,0,0,0)';
+    bufferCtx.fillStyle = 'rgba(0,0,0,1)';
   } else {
     bufferCtx.globalCompositeOperation = 'source-over';
     bufferCtx.fillStyle = customColor;
@@ -579,7 +579,14 @@ function broadcastEvent(event) {
 }
 
 function applyRemotePixel(event) {
-  paintPixel(event.x, event.y, event.size || 1, event.tool, event.color || '#000000');
+  const remoteTool = event.tool || 'brush';
+  const remoteColor =
+    remoteTool === 'eraser'
+      ? null
+      : event.color != null && event.color !== ''
+        ? event.color
+        : '#000000';
+  paintPixel(event.x, event.y, event.size || 1, remoteTool, remoteColor);
   redraw();
 }
 
