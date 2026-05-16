@@ -10,7 +10,7 @@ const sessions = new Map();
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
-
+//fix
 function hashPassword(password, username) {
   const salt = crypto.createHash('sha256').update(username).digest('hex');
   return crypto.createHmac('sha512', salt).update(password).digest('hex');
