@@ -1,7 +1,7 @@
 # Saint-Pixels
 
 <p align="center">
-  <img src="./59x5title.png" alt="Saint Pixels Title Screen" width="700">
+  <img src="./59x5title.png" alt="Saint Pixels Title Screen" style="image-rendering: pixelated; width: 700px;">
 </p>
 
 A canvas for pixels where players can draw, defend, and leave their mark on the world.
