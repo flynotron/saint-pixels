@@ -20,4 +20,4 @@ Saint-Pixels is a multiplayer pixel canvas project inspired by classic internet 
 
 ## Getting Started
 
-You can contribute to project if you want to, you cannot redistribute nor sell the project.
+You can contribute to the project if you want to; you can't redistribute nor sell the project.
