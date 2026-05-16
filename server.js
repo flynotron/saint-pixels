@@ -40,6 +40,36 @@ db.serialize(() => {
   )`);
 });
 
+  db.run(`CREATE TABLE IF NOT EXISTS palette (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    color TEXT NOT NULL
+  )`);
+
+  db.get('SELECT COUNT(*) AS count FROM palette', (err, row) => {
+    if (err) {
+      console.error('Palette table count failed:', err);
+      return;
+    }
+    if (!row || row.count === 0) {
+      const defaultPalette = [
+        ['Black', '000000'],
+        ['White', 'ffffff'],
+        ['Orange', 'f97316'],
+        ['Yellow', 'fde047'],
+        ['Green', '22c55e'],
+        ['Blue', '38bdf8'],
+        ['Indigo', '818cf8'],
+        ['Pink', 'ec4899'],
+        ['Light Green', 'a3e635']
+      ];
+      const stmt = db.prepare('INSERT INTO palette (label, color) VALUES (?, ?)');
+      defaultPalette.forEach(([label, color]) => stmt.run(label, color));
+      stmt.finalize();
+    }
+  });
+});
+
 app.post('/api/register', (req, res) => {
   const { username, password } = req.body || {};
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
