@@ -399,11 +399,13 @@ button.compact {
 .palette button::after {
   content: '';
   display: none;
+  pointer-events: none;
 }
 
 .palette button:hover::after {
   content: '✕';
   display: flex;
+  pointer-events: none;
   position: absolute;
   top: 6px;
   right: 6px;
