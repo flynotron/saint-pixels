@@ -348,8 +348,22 @@ button.compact {
 
 .tool-list {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.tool--brush {
+  grid-column: 1 / -1;
+  padding: 16px 18px;
+  min-height: 4.25rem;
+  font-size: 1rem;
+}
+
+.tool--secondary {
+  padding: 9px 12px;
+  min-height: 2.35rem;
+  font-size: 0.88rem;
 }
 
 .tool {
