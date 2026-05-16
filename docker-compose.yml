@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    working_dir: /app
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+    command: sh -c "npm install && node server.js"
+    restart: unless-stopped
