@@ -99,7 +99,11 @@ function safeParse(value, fallback) {
 }
 
 function getCustomPalette() {
-  return safeParse(localStorage.getItem(CUSTOM_PALETTE_KEY), []);
+  const raw = safeParse(localStorage.getItem(CUSTOM_PALETTE_KEY), []);
+  if (!Array.isArray(raw)) return [];
+  return raw.map(entry =>
+    normalizeHexColor(typeof entry === 'string' ? entry : String(entry?.color ?? ''))
+  );
 }
 
 function saveCustomPalette(list) {
@@ -633,7 +637,7 @@ function applyRemotePixel(event) {
     remoteTool === 'eraser'
       ? null
       : event.color != null && event.color !== ''
-        ? event.color
+        ? normalizeHexColor(String(event.color))
         : '#000000';
   paintPixel(event.x, event.y, event.size || 1, remoteTool, remoteColor);
   redraw();
@@ -646,7 +650,11 @@ function handleRemoteEvent(event) {
   } else if (event.type === 'clear') {
     clearCanvasLocal(false);
   } else if (event.type === 'palette') {
-    customPalette = event.palette || [];
+    customPalette = Array.isArray(event.palette)
+      ? event.palette.map(entry =>
+          normalizeHexColor(typeof entry === 'string' ? entry : String(entry?.color ?? ''))
+        )
+      : [];
     saveCustomPalette(customPalette);
     renderPalette();
   }
@@ -707,7 +715,7 @@ function renderPalette() {
     if (entry.id == null) {
       button.addEventListener('contextmenu', (ev) => {
         ev.preventDefault();
-        const idx = customPalette.indexOf(entry.color);
+        const idx = customPalette.findIndex(c => normalizeHexColor(String(c)) === entry.color);
         if (idx !== -1) {
           customPalette.splice(idx, 1);
           saveCustomPalette(customPalette);
@@ -728,8 +736,9 @@ async function initPalette() {
 }
 
 function addColorToPalette() {
-  const newColor = colorInput.value;
-  if (!customPalette.includes(newColor)) {
+  const newColor = normalizeHexColor(colorInput.value);
+  const duplicate = customPalette.some(c => normalizeHexColor(String(c)) === newColor);
+  if (!duplicate) {
     customPalette.push(newColor);
     if (customPalette.length > 18) {
       customPalette.shift();
