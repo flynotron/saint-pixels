@@ -11,8 +11,9 @@ const sessions = new Map();
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
+function hashPassword(password, username) {
+  const salt = crypto.createHash('sha256').update(username).digest('hex');
+  return crypto.createHmac('sha512', salt).update(password).digest('hex');
 }
 
 function createSession(username) {
@@ -40,34 +41,33 @@ db.serialize(() => {
   )`);
 });
 
-  db.run(`CREATE TABLE IF NOT EXISTS palette (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    label TEXT NOT NULL,
-    color TEXT NOT NULL
-  )`);
+db.run(`CREATE TABLE IF NOT EXISTS palette (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  label TEXT NOT NULL,
+  color TEXT NOT NULL
+)`);
 
-  db.get('SELECT COUNT(*) AS count FROM palette', (err, row) => {
-    if (err) {
-      console.error('Palette table count failed:', err);
-      return;
-    }
-    if (!row || row.count === 0) {
-      const defaultPalette = [
-        ['Black', '000000'],
-        ['White', 'ffffff'],
-        ['Orange', 'f97316'],
-        ['Yellow', 'fde047'],
-        ['Green', '22c55e'],
-        ['Blue', '38bdf8'],
-        ['Indigo', '818cf8'],
-        ['Pink', 'ec4899'],
-        ['Light Green', 'a3e635']
-      ];
-      const stmt = db.prepare('INSERT INTO palette (label, color) VALUES (?, ?)');
-      defaultPalette.forEach(([label, color]) => stmt.run(label, color));
-      stmt.finalize();
-    }
-  });
+db.get('SELECT COUNT(*) AS count FROM palette', (err, row) => {
+  if (err) {
+    console.error('Palette table count failed:', err);
+    return;
+  }
+  if (!row || row.count === 0) {
+    const defaultPalette = [
+      ['Black', '000000'],
+      ['White', 'ffffff'],
+      ['Orange', 'f97316'],
+      ['Yellow', 'fde047'],
+      ['Green', '22c55e'],
+      ['Blue', '38bdf8'],
+      ['Indigo', '818cf8'],
+      ['Pink', 'ec4899'],
+      ['Light Green', 'a3e635']
+    ];
+    const stmt = db.prepare('INSERT INTO palette (label, color) VALUES (?, ?)');
+    defaultPalette.forEach(([label, color]) => stmt.run(label, color));
+    stmt.finalize();
+  }
 });
 
 app.post('/api/register', (req, res) => {
@@ -94,7 +94,7 @@ app.post('/api/register', (req, res) => {
       if (err) return res.status(500).json({ error: 'Database error.' });
       if (existing) return res.status(409).json({ error: 'Username already taken.' });
 
-      const hashed = hashPassword(password);
+      const hashed = hashPassword(password, username);
       const createdAt = Date.now();
       db.run('INSERT INTO accounts (username, password, ip, created_at) VALUES (?, ?, ?, ?)', [username, hashed, ip, createdAt], function (insertErr) {
         if (insertErr) return res.status(500).json({ error: 'Could not create account.' });
@@ -111,12 +111,11 @@ app.post('/api/login', (req, res) => {
     return res.status(400).json({ error: 'Username and password are required.' });
   }
 
-  db.get('SELECT username, password FROM accounts WHERE username = ?', [username], (err, row) => {
+  const passwordHash = hashPassword(password, username);
+
+  db.get('SELECT username, password FROM accounts WHERE username = ? AND password = ?', [username, hash], (err, row) => {
     if (err) return res.status(500).json({ error: 'Database error.' });
     if (!row) return res.status(401).json({ error: 'Invalid credentials.' });
-    if (row.password !== hashPassword(password)) {
-      return res.status(401).json({ error: 'Invalid credentials.' });
-    }
     const token = createSession(username);
     return res.json({ username, token });
   });
