@@ -782,7 +782,8 @@ function showVariationPicker(entry, anchorEl) {
 
   const baseColor = entry.color;
   const [lighter1, lighter2, darker1, darker2] = generateColorVariations(baseColor);
-  const normBase = normalizeHexColor(baseColor);
+  // Center shows the currently active color, not just the palette entry base
+  const normBase = normalizeHexColor(color || baseColor);
 
   const picker = document.createElement('div');
   picker.className = 'variation-picker';
@@ -823,7 +824,7 @@ function showVariationPicker(entry, anchorEl) {
 
   // Middle-left spacer
   picker.appendChild(document.createElement('div'));
-  // Center original color
+  // Center: currently selected color
   const center = document.createElement('button');
   center.className = 'variation-swatch';
   center.style.width = '56px';
@@ -831,7 +832,7 @@ function showVariationPicker(entry, anchorEl) {
   center.style.border = '2px solid rgba(255,255,255,0.28)';
   center.style.borderRadius = '14px';
   center.style.background = normBase;
-  center.title = normBase.toUpperCase();
+  center.title = `Current: ${normBase.toUpperCase()}`;
   center.addEventListener('click', () => {
     setColor(normBase);
     picker.remove();
@@ -853,11 +854,34 @@ function showVariationPicker(entry, anchorEl) {
 
   document.body.appendChild(picker);
 
-  // Position the picker above the clicked swatch, centered horizontally.
-  const rect = anchorEl.getBoundingClientRect();
+  // Position the picker to the left of the controls panel (next to the palette),
+  // vertically centered on the anchor swatch.
+  const anchorRect = anchorEl.getBoundingClientRect();
+  const controlsPanel = document.querySelector('.controls-panel');
+  const panelRect = controlsPanel ? controlsPanel.getBoundingClientRect() : null;
   const pickerRect = picker.getBoundingClientRect();
-  picker.style.left = `${Math.max(8, rect.left + rect.width / 2 - pickerRect.width / 2)}px`;
-  picker.style.top = `${Math.max(8, rect.top - pickerRect.height - 8)}px`;
+
+  let left, top;
+
+  if (panelRect) {
+    // Place to the left of the controls panel with a small gap
+    left = panelRect.left - pickerRect.width - 10;
+    // Vertically align to the anchor swatch center
+    top = anchorRect.top + anchorRect.height / 2 - pickerRect.height / 2;
+  } else {
+    // Fallback: above the swatch
+    left = anchorRect.left + anchorRect.width / 2 - pickerRect.width / 2;
+    top = anchorRect.top - pickerRect.height - 8;
+  }
+
+  // Clamp to viewport
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  left = Math.max(8, Math.min(left, vw - pickerRect.width - 8));
+  top = Math.max(8, Math.min(top, vh - pickerRect.height - 8));
+
+  picker.style.left = `${left}px`;
+  picker.style.top = `${top}px`;
 
   const onDocClick = (ev) => {
     if (!picker.contains(ev.target) && ev.target !== anchorEl) {
