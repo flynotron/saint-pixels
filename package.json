@@ -8,6 +8,7 @@
   "dependencies": {
     "better-sqlite3": "^12.10.0",
     "express": "^4.22.2",
-    "workflow": "^4.2.4"
+    "workflow": "^4.2.4",
+    "express-rate-limit": "^8.5.2"
   }
 }
