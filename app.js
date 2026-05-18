@@ -155,6 +155,8 @@ async function loadServerPalette() {
     if (Array.isArray(data.colors)) {
       paletteColors.length = 0;
       data.colors.forEach(item => paletteColors.push(asPaletteEntry(item)));
+      // Ensure the standard rainbow colors are present in the loaded palette
+      ensureRainbowInPalette(paletteColors);
       return;
     }
   } catch (error) {
@@ -162,6 +164,26 @@ async function loadServerPalette() {
   }
   paletteColors.length = 0;
   DEFAULT_PALETTE.forEach(item => paletteColors.push(asPaletteEntry(item)));
+  // Ensure the defaults include rainbow colors (safety)
+  ensureRainbowInPalette(paletteColors);
+}
+
+/**
+ * Ensure the palette contains the seven rainbow colors (red, orange, yellow,
+ * green, blue, indigo, violet). If any are missing, append them from
+ * DEFAULT_PALETTE so the user always has the full rainbow available.
+ */
+function ensureRainbowInPalette(list) {
+  if (!Array.isArray(list)) return;
+  const rainbowLabels = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Violet'];
+  const present = new Set(list.map(e => String(e.label || e.color || '').toLowerCase()));
+  // Add missing rainbow entries from DEFAULT_PALETTE preserving original order
+  DEFAULT_PALETTE.forEach(entry => {
+    if (rainbowLabels.includes(entry.label) && !present.has(String(entry.label).toLowerCase())) {
+      list.push(asPaletteEntry(entry));
+      present.add(String(entry.label).toLowerCase());
+    }
+  });
 }
 
 async function updateAuthState() {
