@@ -72,6 +72,27 @@ button {
   min-width: min(100%, 220px);
 }
 
+.contribute-link {
+  margin-right: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+
+.contribute-link:hover {
+  transform: translateY(-1px);
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.8);
+}
+
 .brand h1 {
   margin: 0;
   font-size: clamp(1.4rem, 2vw, 2rem);
