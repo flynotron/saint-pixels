@@ -707,29 +707,22 @@ function renderPalette() {
     if (entry.color.toLowerCase() === (color || '').toLowerCase()) {
       button.classList.add('selected');
     }
+    let clickTimer = null;
     button.addEventListener('click', () => {
-      setColor(entry.color);
-      renderPalette();
+      clickTimer = setTimeout(() => {
+        clickTimer = null;
+        setColor(entry.color);
+        document.querySelectorAll('.palette button').forEach(b => {
+          b.classList.toggle('selected', b.dataset.color === entry.color);
+        });
+      }, 220);
     });
 
-    // Double-click to open variation picker (two darker on top, two lighter on bottom)
     button.addEventListener('dblclick', (ev) => {
       ev.preventDefault();
+      if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
       showVariationPicker(entry, button);
     });
-
-    if (entry.id == null) {
-      button.addEventListener('contextmenu', (ev) => {
-        ev.preventDefault();
-        const idx = customPalette.findIndex(c => normalizeHexColor(String(c)) === entry.color);
-        if (idx !== -1) {
-          customPalette.splice(idx, 1);
-          saveCustomPalette(customPalette);
-          renderPalette();
-          broadcastEvent({ type: 'palette', palette: customPalette });
-        }
-      });
-    }
 
     paletteEl.appendChild(button);
   });
@@ -782,8 +775,7 @@ function showVariationPicker(entry, anchorEl) {
 
   const baseColor = entry.color;
   const [lighter1, lighter2, darker1, darker2] = generateColorVariations(baseColor);
-  // Center shows the currently active color, not just the palette entry base
-  const normBase = normalizeHexColor(color || baseColor);
+  const normBase = normalizeHexColor(baseColor);
 
   const picker = document.createElement('div');
   picker.className = 'variation-picker';
@@ -824,7 +816,7 @@ function showVariationPicker(entry, anchorEl) {
 
   // Middle-left spacer
   picker.appendChild(document.createElement('div'));
-  // Center: currently selected color
+  // Center original color
   const center = document.createElement('button');
   center.className = 'variation-swatch';
   center.style.width = '56px';
@@ -832,7 +824,7 @@ function showVariationPicker(entry, anchorEl) {
   center.style.border = '2px solid rgba(255,255,255,0.28)';
   center.style.borderRadius = '14px';
   center.style.background = normBase;
-  center.title = `Current: ${normBase.toUpperCase()}`;
+  center.title = normBase.toUpperCase();
   center.addEventListener('click', () => {
     setColor(normBase);
     picker.remove();
@@ -852,36 +844,33 @@ function showVariationPicker(entry, anchorEl) {
   // Bottom-right lighter
   picker.appendChild(addVariantButton(lighter2, () => applyPickerColor(lighter2, entry, anchorEl, picker)));
 
+  picker.style.visibility = 'hidden';
+  picker.style.top = '-9999px';
+  picker.style.left = '-9999px';
   document.body.appendChild(picker);
 
-  // Position the picker to the left of the controls panel (next to the palette),
-  // vertically centered on the anchor swatch.
+  void picker.offsetWidth;
+
   const anchorRect = anchorEl.getBoundingClientRect();
+  const pickerRect = picker.getBoundingClientRect();
   const controlsPanel = document.querySelector('.controls-panel');
   const panelRect = controlsPanel ? controlsPanel.getBoundingClientRect() : null;
-  const pickerRect = picker.getBoundingClientRect();
 
   let left, top;
-
-  if (panelRect) {
-    // Place to the left of the controls panel with a small gap
-    left = panelRect.left - pickerRect.width - 10;
-    // Vertically align to the anchor swatch center
+  if (panelRect && panelRect.left > pickerRect.width + 20) {
+    left = panelRect.left - pickerRect.width - 12;
     top = anchorRect.top + anchorRect.height / 2 - pickerRect.height / 2;
   } else {
-    // Fallback: above the swatch
     left = anchorRect.left + anchorRect.width / 2 - pickerRect.width / 2;
     top = anchorRect.top - pickerRect.height - 8;
   }
 
-  // Clamp to viewport
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  left = Math.max(8, Math.min(left, vw - pickerRect.width - 8));
-  top = Math.max(8, Math.min(top, vh - pickerRect.height - 8));
+  left = Math.max(8, Math.min(left, window.innerWidth - pickerRect.width - 8));
+  top = Math.max(8, Math.min(top, window.innerHeight - pickerRect.height - 8));
 
   picker.style.left = `${left}px`;
   picker.style.top = `${top}px`;
+  picker.style.visibility = 'visible';
 
   const onDocClick = (ev) => {
     if (!picker.contains(ev.target) && ev.target !== anchorEl) {
@@ -894,17 +883,17 @@ function showVariationPicker(entry, anchorEl) {
 
 function applyPickerColor(newColor, entry, anchorEl, picker) {
   const normalized = normalizeHexColor(newColor);
-  entry.color = normalized;
-  entry.label = normalized;
+  // Update the palette swatch visually
+  anchorEl.style.background = normalized;
+  anchorEl.dataset.color = normalized;
+  anchorEl.title = normalized.toUpperCase();
+  // Update the in-memory palette entry so the change sticks
   const paletteSource = paletteColors.length > 0 ? paletteColors : DEFAULT_PALETTE;
-  const paletteEntry = paletteSource.find(pc => normalizeHexColor(String(pc.color)) === normalizeHexColor(entry.color) || pc.id === entry.id);
+  const paletteEntry = paletteSource.find(pc => pc.id === entry.id);
   if (paletteEntry) {
     paletteEntry.color = normalized;
     paletteEntry.label = normalized;
   }
-  anchorEl.style.background = normalized;
-  anchorEl.dataset.color = normalized;
-  anchorEl.title = `${normalized.toUpperCase()}`;
   setColor(normalized);
   picker.remove();
 }

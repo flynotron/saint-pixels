@@ -395,25 +395,7 @@ button.compact {
   outline: 2px solid rgba(255,255,255,0.06);
 }
 
-.palette button::after {
-  content: '';
-  display: none;
-  pointer-events: none;
-}
 
-.palette button:hover::after {
-  content: '✕';
-  display: flex;
-  pointer-events: none;
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  background: rgba(0,0,0,0.45);
-  color: #fff;
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 8px;
-}
 
 .palette-actions {
   margin-top: 14px;
@@ -547,18 +529,24 @@ kbd {
 }
 
 .variation-picker {
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #c8c8c8;
+  color: #111;
 }
 
-.variation-picker .variation-swatch {
+.variation-picker > div {
+  pointer-events: none;
+}
+
+.variation-swatch {
   padding: 0;
   margin: 0;
-  border-radius: 4px;
   cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
-.variation-picker div {
-  display: inline-block;
+.variation-swatch:hover {
+  transform: scale(1.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  z-index: 1;
 }

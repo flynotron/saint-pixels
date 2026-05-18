@@ -8,7 +8,7 @@ No need to install Node.js or npm locally. Just install [Docker](https://docs.do
 sudo docker compose up --build
 ```
 
-The app will be available at `http://localhost:3000`
+The app will be available at `d`
 
 ## Environment Variables
 
