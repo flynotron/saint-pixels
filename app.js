@@ -1042,6 +1042,7 @@ function handlePanStart(event) {
   if (event.button !== 0) return;
   isPanning = true;
   dragStart = { x: event.clientX - offsetX, y: event.clientY - offsetY };
+  canvas.classList.add('panning');
 }
 
 function handlePan(event) {
@@ -1055,6 +1056,7 @@ function handlePan(event) {
 function handlePanEnd() {
   isPanning = false;
   dragStart = null;
+  canvas.classList.remove('panning');
 }
 
 function resizeViewport() {
@@ -1178,6 +1180,10 @@ authUsername.addEventListener('keydown', event => {
 });
 
 document.addEventListener('keydown', event => {
+  if (event.key === 'Shift') {
+    canvas.classList.add('shift-pan');
+  }
+
   const target = event.target;
   if (target.closest?.('input, textarea, select')) return;
   // Don't steal Enter from focused toolbar/auth buttons (activation uses Enter).
@@ -1197,6 +1203,12 @@ document.addEventListener('keydown', event => {
     case 'ArrowDown': event.preventDefault(); moveCursorFromArrow(0, 1, event); break;
     case 'ArrowLeft': event.preventDefault(); moveCursorFromArrow(-1, 0, event); break;
     case 'ArrowRight': event.preventDefault(); moveCursorFromArrow(1, 0, event); break;
+  }
+});
+
+window.addEventListener('keyup', event => {
+  if (event.key === 'Shift') {
+    canvas.classList.remove('shift-pan');
   }
 });
 

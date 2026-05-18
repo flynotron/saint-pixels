@@ -328,6 +328,14 @@ button.compact {
   cursor: crosshair;
 }
 
+.viewport canvas.shift-pan {
+  cursor: grab;
+}
+
+.viewport canvas.panning {
+  cursor: grabbing;
+}
+
 #canvas {
   z-index: 1;
 }
