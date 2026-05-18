@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node server.js"
+    "build": "webpack"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",
