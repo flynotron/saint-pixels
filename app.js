@@ -63,7 +63,8 @@ const MOUSE_CURSOR_ARMOR_PX = 36;
 const GRID_DOT_SCREEN_PX = 3;
 const CLIENT_HEARTBEAT_MS = 2000;
 const CLIENT_TTL = 8000;
-const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const sessionRandom = Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join('');
+const sessionId = `${Date.now()}-${sessionRandom}`;
 
 const bufferCanvas = document.createElement('canvas');
 bufferCanvas.width = CANVAS_WIDTH;
