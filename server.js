@@ -163,7 +163,14 @@ app.post('/api/logout', (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/palette', (req, res) => {
+const paletteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+app.get('/api/palette', paletteLimiter, (req, res) => {
   try {
     const selectStmt = db.prepare('SELECT id, label, color FROM palette ORDER BY id ASC');
     const rows = selectStmt.all();
