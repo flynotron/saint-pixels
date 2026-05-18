@@ -326,40 +326,24 @@ function canPlacePixel() {
 function drawGrid() {
   overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
   if (!gridEnabled) return;
-  // Draw grid only inside the visible board area (BOARD_WIDTH x BOARD_HEIGHT)
+
   const startX = Math.floor(Math.max(0, -offsetX) / scale);
   const startY = Math.floor(Math.max(0, -offsetY) / scale);
   const endX = Math.ceil(Math.min(BOARD_WIDTH, (overlay.width - offsetX) / scale));
   const endY = Math.ceil(Math.min(BOARD_HEIGHT, (overlay.height - offsetY) / scale));
 
-  // If the visible dot count is reasonable, draw grid corner dots at each logical pixel.
-  const visibleCount = (endX - startX + 1) * (endY - startY + 1);
-  const DOT_DRAW_LIMIT = 200000; // avoid too many rect draws
-
-  if (visibleCount <= DOT_DRAW_LIMIT) {
+  // Only draw grid lines when zoomed in enough to be useful
+  if (scale >= 3) {
     overlayCtx.save();
-    overlayCtx.fillStyle = 'rgba(0,0,0,0.36)';
-    const d = GRID_DOT_SCREEN_PX;
-    for (let gy = startY; gy <= endY; gy++) {
-      const baseY = Math.round(gy * scale + offsetY);
-      for (let gx = startX; gx <= endX; gx++) {
-        const px = Math.round(gx * scale + offsetX);
-        overlayCtx.fillRect(px, baseY, d, d);
-      }
-    }
-    overlayCtx.restore();
-  } else {
-    // Fallback: draw crisp 1px lines aligned to the pixel grid.
-    overlayCtx.save();
-    overlayCtx.strokeStyle = 'rgba(0,0,0,0.36)';
+    overlayCtx.strokeStyle = 'rgba(0,0,0,0.18)';
     overlayCtx.lineWidth = 1;
-    overlayCtx.setLineDash([1, 1]);
+    overlayCtx.setLineDash([2, 2]);
 
     for (let gx = startX; gx <= endX; gx++) {
       const px = Math.floor(gx * scale + offsetX) + 0.5;
       overlayCtx.beginPath();
       overlayCtx.moveTo(px, Math.floor(startY * scale + offsetY));
-      overlayCtx.lineTo(px, Math.floor((endY + 1) * scale + offsetY));
+      overlayCtx.lineTo(px, Math.floor(endY * scale + offsetY));
       overlayCtx.stroke();
     }
 
@@ -367,15 +351,17 @@ function drawGrid() {
       const py = Math.floor(gy * scale + offsetY) + 0.5;
       overlayCtx.beginPath();
       overlayCtx.moveTo(Math.floor(startX * scale + offsetX), py);
-      overlayCtx.lineTo(Math.floor((endX + 1) * scale + offsetX), py);
+      overlayCtx.lineTo(Math.floor(endX * scale + offsetX), py);
       overlayCtx.stroke();
     }
+
     overlayCtx.restore();
   }
 
   // Board border
   overlayCtx.save();
   overlayCtx.strokeStyle = 'rgba(0,0,0,0.55)';
+  overlayCtx.setLineDash([]);
   const bx = Math.round(offsetX + 0.5);
   const by = Math.round(offsetY + 0.5);
   const bw = Math.round(BOARD_WIDTH * scale - 1);
@@ -401,7 +387,8 @@ function redraw() {
 }
 
 function getCanvasCoords(clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
+  // Use viewport rect — canvas pixel dimensions are sized from viewport, not from canvas CSS size
+  const rect = viewport.getBoundingClientRect();
   const x = (clientX - rect.left - offsetX) / scale;
   const y = (clientY - rect.top - offsetY) / scale;
   return {
@@ -996,7 +983,7 @@ function stopAction() {
 
 function handleWheel(event) {
   event.preventDefault();
-  const rect = canvas.getBoundingClientRect();
+  const rect = viewport.getBoundingClientRect();
   const mouseX = event.clientX - rect.left;
   const mouseY = event.clientY - rect.top;
   // Default: wheel zooms around cursor. Hold Shift to pan instead.
@@ -1101,7 +1088,7 @@ canvas.addEventListener('wheel', handleWheel, { passive: false });
 
 zoomInput.addEventListener('input', event => {
   const nextZoom = Number(event.target.value) / 100;
-  const rect = canvas.getBoundingClientRect();
+  const rect = viewport.getBoundingClientRect();
   const centerX = rect.width / 2;
   const centerY = rect.height / 2;
   const boardCenterX = (centerX - offsetX) / scale;

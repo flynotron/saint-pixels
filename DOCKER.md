@@ -29,6 +29,8 @@ node server.js
 
 The server prints the URL to the console on startup.
 
+If you don't change the port, it is: http://localhost:3000
+
 ## API Endpoints
 
 - `POST /api/register` - Create a new account
