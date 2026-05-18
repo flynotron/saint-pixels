@@ -52,7 +52,7 @@ const TOKEN_KEY = 'sp_token';
 const EVENT_KEY = 'sp_last_event';
 const PIXEL_HISTORY_KEY = 'sp_pixel_history';
 const CLIENTS_KEY = 'sp_clients';
-const COOLDOWN_MS = 4000;
+const COOLDOWN_MS = 5000;
 /** Max zoom as UI scale (1 = 100%, 50 = 5000%) */
 const MAX_ZOOM_SCALE = 50;
 /** Slow OS key-repeat for arrow nudging (ms between steps while key is held) */
