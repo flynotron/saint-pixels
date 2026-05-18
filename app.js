@@ -1047,10 +1047,39 @@ function handlePanStart(event) {
 
 function handlePan(event) {
   if (!isPanning || !dragStart) return;
-  offsetX = event.clientX - dragStart.x;
-  offsetY = event.clientY - dragStart.y;
-  clampOffsets();
+
+  // Compute the proposed offsets based on pointer movement
+  const proposedX = event.clientX - dragStart.x;
+  const proposedY = event.clientY - dragStart.y;
+
+  // Determine whether the proposed offsets would be clamped by the viewport rules
+  const scaledWidth = CANVAS_WIDTH * scale;
+  const scaledHeight = CANVAS_HEIGHT * scale;
+
+  let allowedX;
+  if (canvas.width >= scaledWidth) {
+    allowedX = Math.round((canvas.width - scaledWidth) / 2);
+  } else {
+    allowedX = clamp(proposedX, canvas.width - scaledWidth, 0);
+  }
+
+  let allowedY;
+  if (canvas.height >= scaledHeight) {
+    allowedY = Math.round((canvas.height - scaledHeight) / 2);
+  } else {
+    allowedY = clamp(proposedY, canvas.height - scaledHeight, 0);
+  }
+
+  // Apply the allowed (possibly clamped) offsets
+  offsetX = allowedX;
+  offsetY = allowedY;
   redraw();
+
+  // If the pointer attempted to move beyond the allowed bounds (was clamped),
+  // end panning so the grabbing hand disappears and we don't later "snap" the view.
+  if (proposedX !== allowedX || proposedY !== allowedY) {
+    handlePanEnd();
+  }
 }
 
 function handlePanEnd() {
@@ -1107,6 +1136,14 @@ canvas.addEventListener('mouseup', event => {
     return;
   }
   stopAction(event);
+});
+// Also listen on the whole document so panning is robust when the pointer
+// leaves the canvas element (prevents the grabbing hand from getting stuck).
+document.addEventListener('mousemove', event => {
+  if (isPanning) handlePan(event);
+});
+document.addEventListener('mouseup', event => {
+  if (isPanning) handlePanEnd();
 });
 canvas.addEventListener('mouseleave', () => {
   isMouseDown = false;
