@@ -11,11 +11,34 @@ const sessions = new Map();
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-function hashPassword(password, username) {
-  const user = typeof username === 'string' ? username : '';
+function hashPassword(password) {
   const pwd = typeof password === 'string' ? password : '';
-  const salt = crypto.createHash('sha256').update(user).digest('hex');
-  return crypto.createHmac('sha512', salt).update(pwd).digest('hex');
+  const iterations = 210000;
+  const keylen = 32;
+  const digest = 'sha512';
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.pbkdf2Sync(pwd, salt, iterations, keylen, digest).toString('hex');
+  return `pbkdf2$${digest}$${iterations}$${salt}$${derived}`;
+}
+
+function verifyPassword(password, storedHash) {
+  const pwd = typeof password === 'string' ? password : '';
+  if (typeof storedHash !== 'string') return false;
+
+  const parts = storedHash.split('$');
+  if (parts.length !== 5 || parts[0] !== 'pbkdf2') return false;
+
+  const digest = parts[1];
+  const iterations = Number.parseInt(parts[2], 10);
+  const salt = parts[3];
+  const expectedHex = parts[4];
+
+  if (!Number.isInteger(iterations) || iterations <= 0) return false;
+  if (!/^[a-f0-9]+$/i.test(expectedHex)) return false;
+
+  const expected = Buffer.from(expectedHex, 'hex');
+  const actual = crypto.pbkdf2Sync(pwd, salt, iterations, expected.length, digest);
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
 function createSession(username) {
@@ -102,7 +125,7 @@ app.post('/api/register', (req, res) => {
       return res.status(409).json({ error: 'Username already taken.' });
     }
 
-    const hashed = hashPassword(password, username);
+    const hashed = hashPassword(password);
     const createdAt = Date.now();
     const insertStmt = db.prepare('INSERT INTO accounts (username, password, ip, created_at) VALUES (?, ?, ?, ?)');
     insertStmt.run(username, hashed, ip, createdAt);
@@ -126,7 +149,7 @@ app.post('/api/login', (req, res) => {
     if (!row) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
-    if (row.password !== hashPassword(password, username)) {
+    if (!verifyPassword(password, row.password)) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
     const token = createSession(username);
