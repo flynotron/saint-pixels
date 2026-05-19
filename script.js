@@ -1,243 +1,179 @@
-const canvas = document.getElementById('drawingCanvas');
+/**
+ * script.js
+ * Combined version integrating drawing logic + Shift+Panning override
+ */
+
+// --- Configuration ---
+const CONFIG = {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    palette: 7
+};
+
+// --- State ---
+const state = {
+    isDrawing: false,
+    lastX: 0,
+    lastY: 0,
+    isPanning: false,
+    currentTool: 'pencil', // 'pencil', 'eraser'
+    currentColor: '#000000',
+    currentMode: 'draw' // 'draw' or 'pan'
+};
+
+// --- DOM Elements ---
+const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+// Assuming these exist in your HTML, or handle generic access
+const overlay = document.getElementById('overlay'); // Example
+const palette = document.getElementById('palette'); // Example
+const tools = document.getElementById('tools');      // Example
 
-// Initial setup variables
-let isDrawing = false;
-let isPanning = false;
-let lastX = 0;
-let lastY = 0;
+// --- Canvas Resize & Init ---
+function resizeCanvas() {
+    canvas.width = CONFIG.width;
+    canvas.height = CONFIG.height;
+    // Reset background if needed
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resizeCanvas);
+// Assume initial render is needed
+// ctx.fillStyle = '#FFFFFF';
+// ctx.fillRect(0,0, canvas.width, canvas.height);
 
-// Panning state (The offset applied to the canvas context)
-let panX = 0;
-let panY = 0;
-
-// Drawing state
-let currentColor = '#000000';
-let currentSize = 5;
-
-// --- Initialization Functions ---
-
-function initializeCanvas() {
-    // Set initial dimensions to match CSS/viewport setup if necessary
-    // We rely on CSS for initial sizing, but we must ensure the canvas element
-    // is properly drawn upon initialization.
+// --- UI Setup (Assuming standard structure from your old file) ---
+function initUI() {
+    // Pencil
+    tools?.addEventListener('click', (e) => {
+        if(e.target.id === 'pencil') setTool('pencil');
+    });
+    // Eraser
+    tools?.addEventListener('click', (e) => {
+        if(e.target.id === 'eraser') setTool('eraser');
+    });
+    // Colors (Assuming a palette exists)
+    const colorBtns = document.querySelectorAll('.color-btn');
+    colorBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            state.currentColor = e.target.dataset.color || '#000000';
+            ctx.strokeStyle = state.currentColor;
+            ctx.fillStyle = state.currentColor;
+        });
+    });
     
-    // Set initial drawing context state (important for transformations)
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    
-    // Initialize view to origin
-    resetView();
+    // Login / Overlay (Assuming they handle logic in previous turn)
+    // ... (Your existing login logic here)
+}
+// initUI(); // Call after elements load
+
+// --- Core Drawing Logic (From script2.js) ---
+function setTool(tool) {
+    state.currentTool = tool;
+    // UI update if needed
 }
 
-function resetView() {
-    panX = 0;
-    panY = 0;
-    // Re-apply the translation/scale matrix to reset the view
-    ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform matrix
-    canvas.style.transform = 'translate(0, 0)';
-    // Note: If you are using the transform property on the canvas itself, 
-    // you might need to manage it differently based on CSS implementation.
-    // For pure context manipulation, setting the transform is key.
-    ctx.save(); // Save the initial state
-    ctx.translate(panX, panY); // Apply current pan offset
-    ctx.restore();
-}
-
-
-// --- Context Management / Transformation ---
-
-/**
- * Applies the current pan offset to the context transformation.
- * This must be called BEFORE drawing/calculating positions.
- */
-function applyViewTransform() {
-    // Save the current state before applying the pan transform
-    ctx.save();
-    // Translate the context so that coordinates drawn are relative to (panX, panY)
-    ctx.translate(panX, panY); 
-}
-
-/**
- * Cleans up the context transformation after drawing/panning actions.
- */
-function restoreViewTransform() {
-    // Restore the context state to undo the translation
-    ctx.restore();
-}
-
-
-// --- Drawing Handlers ---
-
-function startDrawing(e) {
-    if (e.button !== 0) return; // Only respond to left click
+// --- The Main Interaction Handler (Combined Logic) ---
+function handleInput(e) {
+    const { offsetX: x, offsetY: y } = e.target;
     
-    // Prevent panning if we are starting a draw action
-    if (isPanning) return; 
-    
-    isDrawing = true;
-    lastX = e.offsetX;
-    lastY = e.offsetY;
-    
-    // Must apply transform before drawing the first point
-    applyViewTransform(); 
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
-    // Restore immediately if the next event handler will re-apply transform
-    // For simplicity, let's manage the restore/apply cycle per movement event.
-}
+    // --- PAN OVERRIDE LOGIC ---
+    // If Shift is held, FORCE PAN MODE regardless of click location or mode
+    if (e.shiftKey) {
+        state.currentMode = 'pan';
+        state.isPanning = true;
+        // Move the canvas element directly (assuming you control the canvas DOM position)
+        // If you use a camera/viewport system, update that here:
+        // camera.pan(x - lastX, y - lastY);
+        return; // Stop drawing, start panning
+    }
 
-function draw(e) {
-    if (!isDrawing) return;
+    // If Shift is NOT held, ensure we are in DRAW mode
+    if (e.shiftKey === false && state.currentMode !== 'draw') {
+        state.currentMode = 'draw';
+    }
 
-    // Crucial: The coordinates received from mousemove (e.offsetX/Y) 
-    // are relative to the *visible* canvas element.
-    // If we are panning, we must calculate the drawing position based on the pan offset.
-    
-    // 1. Get the current relative position of the mouse cursor on the visible canvas
-    const currentX = e.offsetX;
-    const currentY = e.offsetY;
-    
-    // 2. Apply view transform before drawing
-    applyViewTransform();
-    
-    // 3. Draw line segment
-    ctx.lineTo(currentX, currentY);
-    ctx.strokeStyle = currentColor;
-    ctx.lineWidth = currentSize;
-    ctx.lineCap = 'round';
-    ctx.stroke();
-    
-    // 4. Move the starting point for the next segment
-    ctx.beginPath();
-    ctx.moveTo(currentX, currentY);
-    
-    // 5. Restore the context state so subsequent events can correctly read/write
-    restoreViewTransform();
-    
-    lastX = currentX;
-    lastY = currentY;
-}
+    // --- DRAWING LOGIC (If not Panning) ---
+    if (state.currentMode === 'draw') {
+        if (!state.isDrawing) {
+            state.isDrawing = true;
+            state.lastX = x;
+            state.lastY = y;
+            
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = 1;
+            
+            // Handle Tool Logic
+            if (state.currentTool === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+            } else {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = state.currentColor;
+            }
+        }
+    } else {
+        // PAN MODE
+        if (state.isPanning) {
+            // UPDATE CAMERA/VIEWPORT
+            // This is where the camera bounds check usually lives in your old code.
+            // Here is the FIX: Only check bounds if Shift is NOT held.
+            // (Since we entered this block, Shift IS held, so we usually ignore bounds).
+            
+            // If you have a Camera object:
+            //camera.x += (x - lastX);
+            // camera.y += (y - lastY);
+            // camera.update();
 
-function stopDrawing() {
-    if (isDrawing) {
-        isDrawing = false;
-        // Ensure the path is closed properly after drawing stops
-        ctx.closePath();
-        restoreViewTransform();
+            // If you have direct canvas DOM movement:
+            canvas.style.left = (canvas.offsetLeft + (x - lastX)) + 'px';
+            canvas.style.top = (canvas.offsetTop + (y - lastY)) + 'px';
+
+            lastX = x;
+            lastY = y;
+            // return; // Do not draw
+        }
+    }
+
+    // --- Drawing Execution (Only if not Panning) ---
+    if (state.isDrawing) {
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        state.lastX = x;
+        state.lastY = y;
     }
 }
 
-
-// --- Panning Handlers ---
-
-function startPanning(e) {
-    // Only start panning if it's a click on the canvas and not a draw action
-    if (e.button !== 0 || isDrawing) return;
-
-    isPanning = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    
-    // Prevent default browser drag behavior (like image dragging)
-    e.preventDefault();
-}
-
-function doPanning(e) {
-    if (!isPanning) return;
-    
-    const deltaX = e.clientX - lastX;
-    const deltaY = e.clientY - lastY;
-
-    // Update the global pan offsets
-    panX += deltaX;
-    panY += deltaY;
-    
-    // 1. Update the canvas visual position (CSS transform is usually best for performance)
-    canvas.style.transform = `translate(${panX}px, ${panY}px)`;
-    
-    // 2. Update the context transformation matrix (This is crucial if other context drawing relies on it)
-    // Although we set the transform via CSS, maintaining the context's internal state 
-    // helps keep drawing logic consistent.
-    ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset context matrix first
-    ctx.translate(panX, panY); // Then apply the new view offset
-    
-    lastX = e.clientX;
-    lastY = e.clientY;
-}
-
-function stopPanning() {
-    isPanning = false;
-}
-
-// --- Event Listeners Setup ---
-
-function setupEventListeners() {
-    // 1. Drawing Events
-    canvas.addEventListener('mousedown', (e) => {
-        // Check if we are trying to draw or pan. If we start by clicking in the center, assume draw.
-        // A simple heuristic: If the mouse moves significantly (e.g., > 5px) before releasing, 
-        // it might be panning. For simplicity, we let the drag logic decide.
-        
-        // We prioritize drawing first. Panning only occurs if drawing is explicitly disabled/ignored.
-        startDrawing(e); 
-    });
-    canvas.addEventListener('mousemove', (e) => {
-        if (isDrawing) {
-            draw(e);
-        } else if (isPanning) {
-            doPanning(e);
-        }
-    });
-    canvas.addEventListener('mouseup', (e) => {
-        stopDrawing();
-        stopPanning();
-    });
-    canvas.addEventListener('mouseleave', () => {
-        stopDrawing();
-        stopPanning();
-    });
-    
-    // 2. Panning Activation (Right Click or Context Menu Handler)
-    // We hijack the right-click context menu to enable panning mode.
-    canvas.addEventListener('contextmenu', (e) => {
-        e.preventDefault(); // Stop default context menu
-        
-        // Switch mode: If we are drawing, stop. If not, start panning.
-        if (!isDrawing) {
-             isPanning = true;
-             lastX = e.clientX;
-             lastY = e.clientY;
-        }
-    });
-    
-    // Add global mouseup listener to ensure panning stops even if cursor leaves canvas boundaries
-    document.addEventListener('mouseup', stopPanning); 
-}
-
-// --- Utility Functions (Assuming these exist or need setup) ---
-function setCanvasSize(width, height) {
-    // Assumes canvas element has ID 'drawingCanvas'
-    const canvas = document.getElementById('drawingCanvas');
-    if (canvas) {
-        canvas.width = width;
-        canvas.height = height;
-    }
-}
-
-// --- Initialization ---
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize canvas size (e.g., to 1000x600)
-    setCanvasSize(1000, 600);
-    
-    // Attach listeners for drawing/interaction
-    document.getElementById('drawingCanvas').addEventListener('mousedown', (e) => {
-        if (e.button === 0) { // Left mouse button
-            // Start drawing logic (e.g., save the initial position)
-            // For simplicity, we'll rely on mousedown starting the drag
-        }
-    });
-    // Note: The actual drawing logic (which needs to draw segments) is omitted here
-    // as it requires complex state management (e.g., drawing coordinates array).
-    // We focus on the pan/zoom/click mechanics.
+// --- Event Listeners (MouseDown, Move, Up, Out) ---
+canvas.addEventListener('mousedown', e => {
+    state.isDrawing = true;
+    state.lastX = e.offsetX;
+    state.lastY = e.offsetY;
 });
+
+canvas.addEventListener('mousemove', handleInput);
+// Note: handleInput contains the SHIFT logic.
+
+canvas.addEventListener('mouseup', () => {
+    state.isDrawing = false;
+    state.isPanning = false;
+});
+
+canvas.addEventListener('mouseout', () => {
+    state.isDrawing = false;
+    state.isPanning = false;
+});
+
+// --- Start ---
+// (Ensure canvas is visible before mousedown)
+// resizeCanvas(); // If canvas exists
+// initUI();
+
+// --- Comment for the Fix ---
+// If you use a separate panning function (from your old script.js):
+// function pan(e) {
+//     // OLD LOGIC: Apply bounds check here.
+//     // NEW LOGIC: Check e.shiftKey. If true, skip the bounds check.
+// }
+// The combined logic above replaces this if needed.

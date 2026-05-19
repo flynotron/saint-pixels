@@ -1015,7 +1015,9 @@ function handleWheel(event) {
   const mouseX = event.clientX - rect.left;
   const mouseY = event.clientY - rect.top;
   // Default: wheel zooms around cursor. Hold Shift to pan instead.
-  if (event.shiftKey) {
+  // If we're actively panning with Shift+drag, still allow zooming with the wheel.
+  // Only interpret Shift+wheel as panning when not currently in an active pan.
+  if (event.shiftKey && !isPanning) {
     offsetX -= event.deltaY * 0.8;
     offsetY -= event.deltaX * 0.4;
     clampOffsets();
