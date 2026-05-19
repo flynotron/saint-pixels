@@ -23,6 +23,7 @@ const loginLimiter = rateLimit({
 function hashPassword(password, username) {
   const user = typeof username === 'string' ? username : '';
   const pwd = typeof password === 'string' ? password : '';
+  // Use the username as the salt source to ensure unique hashes for identical passwords
   const salt = crypto.createHash('sha256').update(user).digest('hex');
   return crypto.createHmac('sha512', salt).update(pwd).digest('hex');
 }
@@ -58,8 +59,6 @@ db.exec(`
     color TEXT NOT NULL
   );
 `);
-
- 
 
 // Populate default palette if empty
 try {
@@ -130,16 +129,20 @@ app.post('/api/login', loginLimiter, (req, res) => {
   }
 
   try {
-    const selectStmt = db.prepare('SELECT username, password FROM accounts WHERE username = ?');
-    const row = selectStmt.get(username);
+    // ALWAYS calculate the hash first to ensure constant-time execution
+    // regardless of whether the user exists in the database.
+    const hashedPassword = hashPassword(password, username);
+    
+    // Use the calculated hash directly in the query to pull the user
+    const selectStmt = db.prepare('SELECT username FROM accounts WHERE username = ? AND password = ?');
+    const row = selectStmt.get(username, hashedPassword);
+    
     if (!row) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
-    if (row.password !== hashPassword(password, username)) {
-      return res.status(401).json({ error: 'Invalid credentials.' });
-    }
-    const token = createSession(username);
-    return res.json({ username, token });
+    
+    const token = createSession(row.username);
+    return res.json({ username: row.username, token });
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ error: 'Database error.' });
