@@ -236,7 +236,7 @@ button.compact {
 .tool.active {
   background: rgba(56, 189, 248, 0.28);
   border-color: rgba(56, 189, 248, 0.8);
-  color: #ffffff;
+  color: #fff;
 }
 
 .toggle-btn:hover,
