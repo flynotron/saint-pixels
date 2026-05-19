@@ -67,6 +67,7 @@
             <button data-tool="brush" type="button" class="tool tool--brush active">Brush</button>
             <button data-tool="eraser" type="button" class="tool tool--secondary">Eraser</button>
             <button data-tool="eyedropper" type="button" class="tool tool--secondary">Eyedropper</button>
+            <button data-tool="hand" type="button" class="tool tool--secondary">Hand</button>
           </div>
         </section>
 
@@ -85,13 +86,15 @@
           <h2>Help</h2>
           <ul class="help-list">
             <li>Left click the board to place a pixel</li>
+            <li>Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to navigate palette colors</li>
+            <li>Use <kbd>F</kbd> to toggle fullscreen</li>
             <li>Double-click a color to create lighter & darker variations</li>
             <li>Right click a color to remove from your palette</li>
             <li>Arrow keys move the cursor (hold repeats slowly)</li>
             <li><kbd>Enter</kbd> places a pixel at the cursor</li>
             <li>Hold Shift + drag to pan</li>
             <li>Mouse wheel to zoom (Shift + wheel to pan)</li>
-            <li>Press <kbd>1</kbd> Brush, <kbd>2</kbd> Eraser, <kbd>3</kbd> Eyedropper</li>
+            <li>Press <kbd>1</kbd> Brush, <kbd>2</kbd> Eraser, <kbd>3</kbd> Eyedropper, <kbd>4</kbd> Hand</li>
           </ul>
         </section>
       </aside>
@@ -108,7 +111,19 @@
           <div class="viewport" id="viewport">
             <canvas id="canvas"></canvas>
             <canvas id="overlay"></canvas>
+
+            <div id="fullscreen-palette" class="fullscreen-palette"></div>
+
+            <button id="fullscreen-btn" class="fullscreen-btn" aria-label="Toggle Fullscreen" title="Fullscreen">
+              <svg id="fs-icon-enter" viewBox="0 0 24 24" width="28" height="28" style="display:block;">
+                <path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+              </svg>
+              <svg id="fs-icon-exit" viewBox="0 0 24 24" width="28" height="28" style="display:none;">
+                <path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+              </svg>
+            </button>
           </div>
+
           <div class="cooldown-bar" id="cooldownBar" role="status" aria-live="polite">
             <div class="cooldown-bar__track">
               <div class="cooldown-bar__fill" id="cooldownFill"></div>
@@ -116,7 +131,6 @@
             <span class="cooldown-bar__label" id="cooldownBarLabel">Sign in to place pixels</span>
           </div>
         </div>
-
         <div class="footer-panel">
           <div class="spawn-container">
             <span>Spawn to Coords:</span>

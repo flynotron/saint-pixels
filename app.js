@@ -348,6 +348,8 @@ function canPlacePixel() {
 
 function drawGrid() {
   overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+  overlayCtx.setLineDash([]);
+  overlayCtx.lineWidth = 1;
   if (!gridEnabled) return;
 
   const ox = Math.round(offsetX);
@@ -520,6 +522,8 @@ function hexToRgba(hex) {
 
 function drawCursor() {
   if (!cursorPosition) return;
+  if (tool === 'hand') return;
+
   const { x, y } = cursorPosition;
   const ox = Math.round(offsetX);
   const oy = Math.round(offsetY);
@@ -527,15 +531,24 @@ function drawCursor() {
   const py = Math.floor(y * scale + oy);
   const size = Math.max(1, Math.round(pixelSize * scale));
 
-  // semi-transparent preview fill matching current color
+  overlayCtx.save();
+  overlayCtx.setLineDash([]);
+
   const rgba = hexToRgba(color || '#000000');
   overlayCtx.fillStyle = `rgba(${rgba[0]}, ${rgba[1]}, ${rgba[2]}, 0.35)`;
   overlayCtx.fillRect(px, py, size, size);
 
-  // outline to indicate exact placement
-  overlayCtx.strokeStyle = 'rgba(255,255,255,0.9)';
-  overlayCtx.lineWidth = 1.5;
+  // dark shadow border for contrast on light backgrounds
+  overlayCtx.strokeStyle = 'rgba(0,0,0,0.5)';
+  overlayCtx.lineWidth = 2;
+  overlayCtx.strokeRect(px - 0.5, py - 0.5, size + 1, size + 1);
+
+  // white border on top
+  overlayCtx.strokeStyle = 'rgba(255,255,255,0.95)';
+  overlayCtx.lineWidth = 1;
   overlayCtx.strokeRect(px, py, size, size);
+
+  overlayCtx.restore();
 }
 
 function moveCursor(dx, dy) {
@@ -595,13 +608,41 @@ function applyToolAtCell(x, y) {
     } else {
       setColor(rgbToHex(pixel[0], pixel[1], pixel[2]));
     }
+    redraw();
+    return;
+  }
+
+  if (!canPlacePixel()) {
+    updateCooldownLabel();
+    redraw();
+    return;
+  }
+
+  // 1. Paint immediately to the buffer and flush to screen — zero latency
+  paintPixel(x, y);
+  lastPlaceAt = Date.now();
+
+  // Draw only the new pixel directly to ctx for instant feedback
+  const ox = Math.round(offsetX);
+  const oy = Math.round(offsetY);
+  const px = Math.floor(x * scale + ox);
+  const py = Math.floor(y * scale + oy);
+  const size = Math.max(1, Math.round(pixelSize * scale));
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (tool === 'eraser') {
+    ctx.clearRect(px, py, size, size);
   } else {
-    if (!canPlacePixel()) {
-      updateCooldownLabel();
-      return;
-    }
-    paintPixel(x, y);
-    lastPlaceAt = Date.now();
+    ctx.fillStyle = color;
+    ctx.fillRect(px, py, size, size);
+  }
+  ctx.restore();
+
+  // 2. Full redraw (grid, cursor, overlay) deferred one frame — invisible delay
+  requestAnimationFrame(() => redraw());
+
+  // 3. Defer storage/broadcast off the hot path entirely
+  setTimeout(() => {
     updateCooldownLabel();
     broadcastEvent({
       type: 'pixel',
@@ -613,9 +654,7 @@ function applyToolAtCell(x, y) {
       user: currentUser,
       time: lastPlaceAt
     });
-  }
-
-  redraw();
+  }, 0);
 }
 
 function placeFromKeyboard() {
@@ -640,12 +679,14 @@ function appendHistory(event) {
 }
 
 function broadcastEvent(event) {
+  // Write EVENT_KEY synchronously so other tabs get it immediately,
+  // but defer the heavier history append to keep the click path instant.
   localStorage.setItem(EVENT_KEY, JSON.stringify(event));
   if (event.type === 'pixel') {
-    appendHistory(event);
+    setTimeout(() => appendHistory(event), 0);
   }
   if (event.type === 'clear') {
-    localStorage.setItem(PIXEL_HISTORY_KEY, JSON.stringify([]));
+    setTimeout(() => localStorage.setItem(PIXEL_HISTORY_KEY, JSON.stringify([])), 0);
   }
 }
 
@@ -710,37 +751,42 @@ function exportPng() {
   link.click();
 }
 
+function createPaletteButton(entry) {
+  const button = document.createElement('button');
+  button.style.background = entry.color;
+  button.dataset.color = entry.color;
+  button.title = `${entry.label} (${entry.color.toUpperCase()})`;
+  if (entry.color.toLowerCase() === (color || '').toLowerCase()) {
+    button.classList.add('selected');
+  }
+  
+  // Apply the color immediately upon clicking (no more delay)
+  button.addEventListener('click', () => {
+    setColor(entry.color);
+  });
+
+  // Double-clicking will still open the menu for the newly selected color
+  button.addEventListener('dblclick', (ev) => {
+    ev.preventDefault();
+    showVariationPicker(entry, button);
+  });
+  
+  return button;
+}
+
 function renderPalette() {
   paletteEl.innerHTML = '';
+  const fsPaletteEl = document.getElementById('fullscreen-palette');
+  if (fsPaletteEl) fsPaletteEl.innerHTML = '';
+
   const sourcePalette = paletteColors.length > 0 ? paletteColors : DEFAULT_PALETTE;
   const colors = sourcePalette.map(asPaletteEntry);
 
   colors.forEach(entry => {
-    const button = document.createElement('button');
-    button.style.background = entry.color;
-    button.dataset.color = entry.color;
-    button.title = `${entry.label} (${entry.color.toUpperCase()})`;
-    if (entry.color.toLowerCase() === (color || '').toLowerCase()) {
-      button.classList.add('selected');
+    paletteEl.appendChild(createPaletteButton(entry));
+    if (fsPaletteEl) {
+      fsPaletteEl.appendChild(createPaletteButton(entry));
     }
-    let clickTimer = null;
-    button.addEventListener('click', () => {
-      clickTimer = setTimeout(() => {
-        clickTimer = null;
-        setColor(entry.color);
-        document.querySelectorAll('.palette button').forEach(b => {
-          b.classList.toggle('selected', b.dataset.color === entry.color);
-        });
-      }, 220);
-    });
-
-    button.addEventListener('dblclick', (ev) => {
-      ev.preventDefault();
-      if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-      showVariationPicker(entry, button);
-    });
-
-    paletteEl.appendChild(button);
   });
 }
 
@@ -863,7 +909,8 @@ function showVariationPicker(entry, anchorEl) {
   picker.style.visibility = 'hidden';
   picker.style.top = '-9999px';
   picker.style.left = '-9999px';
-  document.body.appendChild(picker);
+  const fsTarget = document.fullscreenElement || document.body;
+  fsTarget.appendChild(picker);
 
   void picker.offsetWidth;
 
@@ -922,6 +969,18 @@ function setTool(newTool) {
   tool = newTool;
   toolButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tool === newTool));
   currentToolLabel.textContent = newTool.charAt(0).toUpperCase() + newTool.slice(1);
+  
+  // Manage active cursor styling layers directly on the viewport wrapper container
+  if (tool === 'hand') {
+    viewport.classList.add('tool-hand-active');
+    canvas.style.cursor = 'grab';
+    overlay.style.cursor = 'grab';
+  } else {
+    viewport.classList.remove('tool-hand-active');
+    viewport.classList.remove('tool-hand-dragging');
+    canvas.style.cursor = 'crosshair';
+    overlay.style.cursor = 'crosshair';
+  }
 }
 
 /** Perceived brightness 0–255; pick label ink for small hex swatches in the top bar. */
@@ -944,8 +1003,13 @@ function setColor(newColor) {
   colorInput.value = norm;
   currentColorLabel.textContent = norm.toUpperCase();
   applyColorSwatchStyles(norm);
-  // update palette selection visuals
-  renderPalette();
+
+  document.querySelectorAll('.palette button, .fullscreen-palette button').forEach(b => {
+    b.classList.toggle('selected', b.dataset.color === norm);
+  });
+
+  // Redraw immediately so cursor preview color updates without waiting for mousemove
+  redraw();
 }
 
 // cleanup: keep the UI consistent after any color change or palette update
@@ -981,17 +1045,57 @@ function updateLiveCount(count) {
 }
 
 function startAction(event) {
-  if (event.button !== 0) return;
-  if (event.shiftKey) {
-    handlePanStart(event);
+  if (event.button !== 0) return; // Only allow left-clicks
+
+  // If holding shift OR the active tool is 'hand', trigger panning
+  if (event.shiftKey || tool === 'hand') {
+    isPanning = true;
+    panStartX = event.clientX - offsetX;
+    panStartY = event.clientY - offsetY;
+    
+    // Switch cursor look to a closed grabbing fist
+    viewport.classList.remove('tool-hand-active');
+    viewport.classList.add('tool-hand-dragging');
     return;
   }
+
   if (!currentUser) {
     authOverlay.classList.remove('hidden');
     return;
   }
+
   isMouseDown = true;
   handleAction(event);
+}
+
+function moveAction(event) {
+  // Update hover crosshair labels
+  updateCoords(event);
+
+  // If we are currently panning, calculate new offset positions
+  if (isPanning) {
+    offsetX = event.clientX - panStartX;
+    offsetY = event.clientY - panStartY;
+    redraw();
+    return;
+  }
+
+  if (!isMouseDown) return;
+  handleAction(event);
+}
+
+function endAction(event) {
+  isMouseDown = false;
+  
+  if (isPanning) {
+    isPanning = false;
+    
+    // Restore styling back to open grab hand if tool is still 'hand'
+    if (tool === 'hand') {
+      viewport.classList.remove('tool-hand-dragging');
+      viewport.classList.add('tool-hand-active');
+    }
+  }
 }
 
 function handleAction(event) {
@@ -1038,20 +1142,22 @@ function handleWheel(event) {
 }
 
 function handlePanStart(event) {
-  if (event.button !== 0) return;
   isPanning = true;
-  dragStart = { x: event.clientX - offsetX, y: event.clientY - offsetY };
-  canvas.classList.add('panning');
+  panStartX = event.clientX - offsetX;
+  panStartY = event.clientY - offsetY;
+  
+  if (tool === 'hand') {
+    viewport.classList.remove('tool-hand-active');
+    viewport.classList.add('tool-hand-dragging');
+  }
 }
 
-function handlePan(event) {
-  if (!isPanning || !dragStart) return;
+function handlePanMove(event) {
+  if (!isPanning) return;
 
-  const proposedX = event.clientX - dragStart.x;
-  const proposedY = event.clientY - dragStart.y;
+  const proposedX = event.clientX - panStartX;
+  const proposedY = event.clientY - panStartY;
 
-  // Use BOARD dimensions (not buffer CANVAS dimensions) for clamping
-  // the board is 1920×1080, the buffer canvas is 2000×2000.
   const scaledWidth = BOARD_WIDTH * scale;
   const scaledHeight = BOARD_HEIGHT * scale;
 
@@ -1073,16 +1179,32 @@ function handlePan(event) {
   offsetY = allowedY;
   redraw();
 
-  // Slide dragStart anchor when clamped so panning resumes
-  // instantly when moving back inward — no freeze, no snap.
-  if (proposedX !== allowedX) dragStart.x = event.clientX - allowedX;
-  if (proposedY !== allowedY) dragStart.y = event.clientY - allowedY;
+  // Reset the anchor so clamping doesn't cause a dead zone when changing directions
+  if (proposedX !== allowedX) panStartX = event.clientX - allowedX;
+  if (proposedY !== allowedY) panStartY = event.clientY - allowedY;
 }
 
 function handlePanEnd() {
+  if (!isPanning) return;
   isPanning = false;
-  dragStart = null;
-  canvas.classList.remove('panning');
+  
+  if (tool === 'hand') {
+    viewport.classList.remove('tool-hand-dragging');
+    viewport.classList.add('tool-hand-active');
+  }
+}
+
+function endAction(event) {
+  isMouseDown = false;
+  if (isPanning) {
+    isPanning = false;
+    
+    // Switch cursor look back to an open hand grab state
+    if (tool === 'hand') {
+      viewport.classList.remove('tool-hand-dragging');
+      viewport.classList.add('tool-hand-active');
+    }
+  }
 }
 
 function resizeViewport() {
@@ -1099,17 +1221,19 @@ function resizeViewport() {
 
 window.addEventListener('resize', resizeViewport);
 canvas.addEventListener('mousedown', event => {
-  if (event.shiftKey) {
+  if (event.shiftKey || tool === 'hand') {
     handlePanStart(event);
     return;
   }
   startAction(event);
 });
+
 canvas.addEventListener('mousemove', event => {
   lastPointerClientX = event.clientX;
   lastPointerClientY = event.clientY;
+  
   if (isPanning) {
-    handlePan(event);
+    handlePanMove(event); // <--- Make sure this says handlePanMove
     return;
   }
 
@@ -1127,20 +1251,20 @@ canvas.addEventListener('mousemove', event => {
   cursorPosition = { x, y };
   redraw();
 });
+
 canvas.addEventListener('mouseup', event => {
   if (isPanning) {
-    handlePanEnd();
+    handlePanEnd(); // <--- Make sure this says handlePanEnd
     return;
   }
   stopAction(event);
 });
-// Also listen on the whole document so panning is robust when the pointer
-// leaves the canvas element (prevents the grabbing hand from getting stuck).
+// Also listen on the whole document so panning is robust when the pointer leaves the canvas element
 document.addEventListener('mousemove', event => {
-  if (isPanning) handlePan(event);
+  if (isPanning) handlePanMove(event); 
 });
 document.addEventListener('mouseup', event => {
-  if (isPanning) handlePanEnd();
+  if (isPanning) handlePanEnd(); 
 });
 canvas.addEventListener('mouseleave', () => {
   //isMouseDown = false;
@@ -1214,6 +1338,24 @@ authUsername.addEventListener('keydown', event => {
 });
 
 document.addEventListener('keydown', event => {
+
+  switch (event.key) {
+    case 'w':
+    case 'W': moveColorFocus(0, -1); break;
+    case 's':
+    case 'S': moveColorFocus(0, 1); break;
+    case 'a':
+    case 'A': moveColorFocus(-1, 0); break;
+    case 'd':
+    case 'D': moveColorFocus(1, 0); break;
+    
+    case '1': setTool('brush'); break;
+    case '2': setTool('eraser'); break;
+    case '3': setTool('eyedropper'); break;
+    case '4': setTool('hand'); break; // NEW
+    case 'g': gridEnabled = !gridEnabled; toggleGridBtn.classList.toggle('active', gridEnabled); redraw(); break;
+  }
+
   if (event.key === 'Shift') {
     canvas.classList.add('shift-pan');
   }
@@ -1232,6 +1374,11 @@ document.addEventListener('keydown', event => {
     case 'Enter':
       event.preventDefault();
       placeFromKeyboard();
+      break;
+    case 'f':
+    case 'F':
+      event.preventDefault();
+      fullscreenBtn?.click();
       break;
     case 'ArrowUp': event.preventDefault(); moveCursorFromArrow(0, -1, event); break;
     case 'ArrowDown': event.preventDefault(); moveCursorFromArrow(0, 1, event); break;
@@ -1326,3 +1473,57 @@ document.getElementById('spawn-btn').addEventListener('click', () => {
   clampOffsets();
   redraw();
 });
+
+function moveColorFocus(dx, dy) {
+  const sourcePalette = paletteColors.length > 0 ? paletteColors : DEFAULT_PALETTE;
+  const cols = 6;
+  const currentIndex = sourcePalette.findIndex(p => normalizeHexColor(p.color) === normalizeHexColor(color));
+  
+  if (currentIndex === -1) return;
+
+  const row = Math.floor(currentIndex / cols);
+  const col = currentIndex % cols;
+
+  const newRow = row + dy;
+  const newCol = col + dx;
+
+  if (newCol < 0 || newCol >= cols || newRow < 0) return;
+  const newIndex = newRow * cols + newCol;
+
+  if (newIndex >= 0 && newIndex < sourcePalette.length) {
+    setColor(sourcePalette[newIndex].color);
+  }
+}
+
+// --- FULLSCREEN LOGIC ---
+const fullscreenBtn = document.getElementById('fullscreen-btn');
+const viewportTarget = document.getElementById('viewport'); // Targeting the exact viewport wrapper container
+const fsIconEnter = document.getElementById('fs-icon-enter');
+const fsIconExit = document.getElementById('fs-icon-exit');
+
+if (fullscreenBtn && viewportTarget) {
+  fullscreenBtn.addEventListener('click', () => {
+    fullscreenBtn.blur();
+    if (!document.fullscreenElement) {
+      viewportTarget.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    if (document.fullscreenElement) {
+      fsIconEnter.style.display = 'none'; // FIXED: Removed duplicate .style
+      fsIconExit.style.display = 'block';
+    } else {
+      fsIconEnter.style.display = 'block';
+      fsIconExit.style.display = 'none';
+    }
+    // Forces the pixel art engine to recalculate layout dimensions upon window morphing
+    if (typeof resizeCanvas === 'function') {
+      resizeCanvas();
+    }
+  });
+}
