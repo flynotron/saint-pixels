@@ -350,7 +350,6 @@ function drawGrid() {
   overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
   if (!gridEnabled) return;
 
-  // Use the same rounded offsets as redraw() so grid aligns perfectly with pixels
   const ox = Math.round(offsetX);
   const oy = Math.round(offsetY);
 
@@ -365,19 +364,20 @@ function drawGrid() {
     overlayCtx.lineWidth = 1;
     overlayCtx.setLineDash([2, 2]);
 
+    // FIXED: Cleaned up the pixel rounding math so lines don't disappear
     for (let gx = startX; gx <= endX; gx++) {
-      const px = Math.floor(gx * scale + ox) + 0.5;
+      const px = Math.round(gx * scale + ox);
       overlayCtx.beginPath();
-      overlayCtx.moveTo(px, Math.floor(startY * scale + oy));
-      overlayCtx.lineTo(px, Math.floor(endY * scale + oy));
+      overlayCtx.moveTo(px, Math.round(startY * scale + oy));
+      overlayCtx.lineTo(px, Math.round(endY * scale + oy));
       overlayCtx.stroke();
     }
 
     for (let gy = startY; gy <= endY; gy++) {
-      const py = Math.floor(gy * scale + oy) + 0.5;
+      const py = Math.round(gy * scale + oy);
       overlayCtx.beginPath();
-      overlayCtx.moveTo(Math.floor(startX * scale + ox), py);
-      overlayCtx.lineTo(Math.floor(endX * scale + ox), py);
+      overlayCtx.moveTo(Math.round(startX * scale + ox), py);
+      overlayCtx.lineTo(Math.round(endX * scale + ox), py);
       overlayCtx.stroke();
     }
 
@@ -388,10 +388,10 @@ function drawGrid() {
   overlayCtx.save();
   overlayCtx.strokeStyle = 'rgba(0,0,0,0.55)';
   overlayCtx.setLineDash([]);
-  const bx = ox + 0.5;
-  const by = oy + 0.5;
-  const bw = Math.round(BOARD_WIDTH * scale - 1);
-  const bh = Math.round(BOARD_HEIGHT * scale - 1);
+  const bx = ox;
+  const by = oy;
+  const bw = Math.round(BOARD_WIDTH * scale);
+  const bh = Math.round(BOARD_HEIGHT * scale);
   overlayCtx.strokeRect(bx, by, bw, bh);
   overlayCtx.restore();
 }
@@ -1015,26 +1015,22 @@ function handleWheel(event) {
   const rect = viewport.getBoundingClientRect();
   const mouseX = event.clientX - rect.left;
   const mouseY = event.clientY - rect.top;
-  // Default: wheel zooms around cursor. Hold Shift to pan instead.
-  // If we're actively panning with Shift+drag, still allow zooming with the wheel.
-  // Only interpret Shift+wheel as panning when not currently in an active pan.
-  if (event.shiftKey && !isPanning) {
-    offsetX -= event.deltaY * 0.8;
-    offsetY -= event.deltaX * 0.4;
-    clampOffsets();
-    redraw();
-    return;
-  }
+
+  // Holding shift no longer alters offsetX or offsetY, preventing accidental horizontal/vertical panning.
+  // The execution flows directly into the zoom logic below.
 
   const boardX = (mouseX - offsetX) / scale;
   const boardY = (mouseY - offsetY) / scale;
   const direction = -Math.sign(event.deltaY);
+  
   // scale factor per wheel tick
   let nextZoom = scale * (direction > 0 ? 1.12 : 0.88);
   nextZoom = clamp(nextZoom, 0.05, MAX_ZOOM_SCALE);
   scale = nextZoom;
+  
   offsetX = mouseX - boardX * scale;
   offsetY = mouseY - boardY * scale;
+  
   clampOffsets();
   zoomInput.value = Math.round(scale * 100);
   zoomLevelLabel.textContent = `${Math.round(scale * 100)}%`;
@@ -1054,7 +1050,7 @@ function handlePan(event) {
   const proposedX = event.clientX - dragStart.x;
   const proposedY = event.clientY - dragStart.y;
 
-  // Use BOARD dimensions (not buffer CANVAS dimensions) for clamping —
+  // Use BOARD dimensions (not buffer CANVAS dimensions) for clamping
   // the board is 1920×1080, the buffer canvas is 2000×2000.
   const scaledWidth = BOARD_WIDTH * scale;
   const scaledHeight = BOARD_HEIGHT * scale;
@@ -1286,4 +1282,47 @@ window.addEventListener('load', async () => {
   updateCooldownLabel();
   setInterval(updateCooldownLabel, 250);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+});
+
+document.getElementById('spawn-btn').addEventListener('click', () => {
+  const spawnXInput = document.getElementById('spawn-x');
+  const spawnYInput = document.getElementById('spawn-y');
+  const spawnZoomInput = document.getElementById('spawn-zoom');
+
+  const targetX = parseInt(spawnXInput.value, 10);
+  const targetY = parseInt(spawnYInput.value, 10);
+  let targetZoomPercent = parseInt(spawnZoomInput.value, 10);
+
+  // Fallback constraints validation
+  if (isNaN(targetX) || isNaN(targetY)) {
+    alert('Please enter valid X and Y coordinates.');
+    return;
+  }
+  if (isNaN(targetZoomPercent) || targetZoomPercent <= 0) {
+    targetZoomPercent = 4500; // Default fallback
+  }
+
+  // Convert percentage value to fractional multiplier scale
+  scale = targetZoomPercent / 100;
+  
+  // Enforce range clamping limits established by system variables
+  scale = clamp(scale, 0.05, MAX_ZOOM_SCALE);
+
+  // Grab active boundaries to establish coordinate offset centering
+  const rect = viewport.getBoundingClientRect();
+  const halfWidth = rect.width / 2;
+  const halfHeight = rect.height / 2;
+
+  // Calculate top-left canvas shifts to align target centered to screen viewport
+  offsetX = halfWidth - (targetX * scale);
+  offsetY = halfHeight - (targetY * scale);
+
+  // Sync state back to top toolbar handles 
+  zoomInput.value = Math.round(scale * 100);
+  if (typeof zoomLevelLabel !== 'undefined' && zoomLevelLabel) {
+    zoomLevelLabel.textContent = `${Math.round(scale * 100)}%`;
+  }
+
+  clampOffsets();
+  redraw();
 });
