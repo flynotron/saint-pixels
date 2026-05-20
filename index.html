@@ -64,7 +64,7 @@
         <section class="panel">
           <h2>Tools</h2>
           <div class="tool-list">
-            <button data-tool="brush" type="button" class="tool tool--brush active">Brush</button>
+            <button data-tool="brush" type="button" class="tool tool--secondary active">Brush</button>
             <button data-tool="eraser" type="button" class="tool tool--secondary">Eraser</button>
             <button data-tool="eyedropper" type="button" class="tool tool--secondary">Eyedropper</button>
             <button data-tool="hand" type="button" class="tool tool--secondary">Hand</button>
@@ -105,6 +105,11 @@
           <button id="toggle-grid" class="toggle-btn active">Grid</button>
           <button id="clear-canvas" class="accent">Clear</button>
           <button id="export-png" class="accent">Export PNG</button>
+          
+          <div class="canvas-info">
+            <div>Coordinates: <span id="coord">—</span></div>
+            <div>Size: 1920 × 1080</div>
+          </div>
         </div>
 
         <div class="viewport-wrapper">
@@ -131,17 +136,16 @@
             <span class="cooldown-bar__label" id="cooldownBarLabel">Sign in to place pixels</span>
           </div>
         </div>
+
         <div class="footer-panel">
           <div class="spawn-container">
-            <span>Coordinates:</span>
+            <span>Spawn to Coordinates:</span>
             <input type="number" id="spawn-x" placeholder="X" min="0" max="1920" />
             <input type="number" id="spawn-y" placeholder="Y" min="0" max="1080" />
             <span class="spawn-zoom-label">Zoom %:</span>
             <input type="number" id="spawn-zoom" value="4500" min="5" max="5000" />
             <button id="spawn-btn" class="accent">Go</button>
           </div>
-          <div>Coords: <span id="coord">—</span></div>
-          <div>Size: 1920 × 1080</div>
         </div>
       </section>
     </main>

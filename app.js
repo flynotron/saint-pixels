@@ -1120,9 +1120,6 @@ function handleWheel(event) {
   const mouseX = event.clientX - rect.left;
   const mouseY = event.clientY - rect.top;
 
-  // Holding shift no longer alters offsetX or offsetY, preventing accidental horizontal/vertical panning.
-  // The execution flows directly into the zoom logic below.
-
   const boardX = (mouseX - offsetX) / scale;
   const boardY = (mouseY - offsetY) / scale;
   const direction = -Math.sign(event.deltaY);
@@ -1138,6 +1135,11 @@ function handleWheel(event) {
   clampOffsets();
   zoomInput.value = Math.round(scale * 100);
   zoomLevelLabel.textContent = `${Math.round(scale * 100)}%`;
+  
+  // NEW: Instantly recalculate the cursor position based on the new zoom scale
+  const newCoords = getCanvasCoords(event.clientX, event.clientY);
+  cursorPosition = { x: newCoords.x, y: newCoords.y };
+  
   redraw();
 }
 
@@ -1287,6 +1289,11 @@ zoomInput.addEventListener('input', event => {
   offsetY = centerY - boardCenterY * scale;
   clampOffsets();
   zoomLevelLabel.textContent = `${Math.round(scale * 100)}%`;
+
+  // NEW: Instantly recalculate the cursor position based on the new zoom scale
+  const newCoords = getCanvasCoords(event.clientX, event.clientY);
+  cursorPosition = { x: newCoords.x, y: newCoords.y };
+  
   redraw();
 });
 
