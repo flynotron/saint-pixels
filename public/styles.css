@@ -825,7 +825,7 @@ kbd {
   height: 100vh !important;
   max-width: 100vw !important;
   max-height: 100vh !important;
-  background: radial-gradient(circle at top, #292929 0%, #2e2e2e 48%) !important; 
+  background: radial-gradient(#fff) !important; 
   display: flex;
   align-items: center;
   justify-content: center;
