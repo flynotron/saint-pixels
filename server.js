@@ -8,7 +8,6 @@ const userCooldowns = new Map(); // Add this
 const app = express();
 const dbFile = path.join(__dirname, 'database.sqlite');
 const db = new Database(dbFile);
-const sessions = new Map();
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
