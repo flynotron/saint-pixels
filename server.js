@@ -3,7 +3,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-
+const sessions = new Map();
+const userCooldowns = new Map(); // Add this
 const app = express();
 const dbFile = path.join(__dirname, 'database.sqlite');
 const db = new Database(dbFile);
@@ -12,15 +13,23 @@ const sessions = new Map();
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-const now = Date.now();
+app.post('/api/pixel', (req, res) => {
+  const session = getSession(req);
+  if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
-if (now - user.lastPixelTime < 5000) {
-  return res.status(429).json({
-    error: "Cooldown active"
-  });
-}
+  const now = Date.now();
+  const lastTime = userCooldowns.get(session.username) || 0;
 
-user.lastPixelTime = now;
+  if (now - lastTime < 5000) {
+    return res.status(429).json({ error: "Cooldown active. Please wait." });
+  }
+
+  // Update the cooldown
+  userCooldowns.set(session.username, now);
+
+  // ... proceed with saving the pixel to the database ...
+  return res.json({ success: true });
+});
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

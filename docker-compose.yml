@@ -1,4 +1,17 @@
 services:
+
+  portainer:
+        container_name: portainer
+        hostname: portainer
+        image: portainer/portainer-ce
+        restart: always
+        ports:
+            - 8000:8000
+            - 9000:9000
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - portainer_data:/data
+
   app:
     build: .
     working_dir: /app
@@ -12,3 +25,4 @@ services:
       - PORT=3000
     command: sh -c "npm install && node server.js"
     restart: unless-stopped
+    portainer_data:
