@@ -404,7 +404,7 @@ button.compact {
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.04);
   border-radius: 16px;
-  text-align: left;
+  text-align: center;
 }
 
 /* Update .tool--secondary to ensure it looks balanced in the grid */
