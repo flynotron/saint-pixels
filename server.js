@@ -10,7 +10,7 @@ const dbFile = path.join(__dirname, 'database.sqlite');
 const db = new Database(dbFile);
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.post('/api/pixel', (req, res) => {
   const session = getSession(req);
