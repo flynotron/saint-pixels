@@ -259,9 +259,8 @@ button.compact {
   min-height: 0;
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 0px;
-  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.12), transparent 35%),
-              radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.12), transparent 30%),
-              linear-gradient(180deg, rgb(255, 255, 255), rgba(255, 255, 255, 0.85));
+  /* Dark blue outside the canvas area */
+  background: #0f172a;
   overflow: hidden;
   position: relative;
   display: flex;
@@ -551,7 +550,8 @@ kbd {
 
   html,
   body {
-    overflow: hidden;
+    overflow: hidden !important; 
+    overscroll-behavior: none;   
     height: 100dvh;
   }
 
@@ -567,11 +567,11 @@ kbd {
     margin-top: 0;
   }
 
-  /* Hide desktop sidebar on phones */
   .controls-panel {
     display: none;
   }
 
+  /* --- Topbar & Username Fix --- */
   .topbar {
     position: fixed;
     top: 0;
@@ -582,6 +582,9 @@ kbd {
     padding: 10px 12px;
     gap: 10px;
     backdrop-filter: blur(12px);
+    display: flex;
+    flex-wrap: wrap; /* Allows username to drop down rather than cut off */
+    justify-content: space-between;
   }
 
   .brand h1 {
@@ -595,22 +598,19 @@ kbd {
 
   .status {
     justify-content: flex-start;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 2px;
+    flex-wrap: wrap; 
+    flex-shrink: 0;
+    max-width: 100%;
   }
 
   .status-chip {
     flex-shrink: 0;
   }
 
-  /* CRITICAL:
-     Fixed bounds prevent canvas compression
-     which breaks coordinate math */
   .canvas-panel {
     position: fixed;
     inset: 0;
-    top: 88px;
+    top: 80px;
     padding: 0;
     border-radius: 0;
     border: none;
@@ -618,177 +618,145 @@ kbd {
     background: #2b2b2b;
   }
 
+  /* --- Toolbar Fix (Zoom, Export, Coords) --- */
   .canvas-toolbar {
     position: absolute;
     left: 0;
     right: 0;
-    bottom: 0;
+    top: 0; 
+    bottom: auto;
     z-index: 1000;
-
     display: flex;
     flex-wrap: nowrap;
-    overflow-x: auto;
+    overflow-x: auto; /* Allows swiping left/right to see tools */
     overflow-y: hidden;
-
     padding: 10px;
-    gap: 8px;
-
+    gap: 12px;
     background: rgba(20, 20, 20, 0.88);
     backdrop-filter: blur(10px);
-
-    border-top: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  
+  .canvas-toolbar::-webkit-scrollbar {
+    display: none;
   }
 
-  .canvas-toolbar label {
-    flex-shrink: 0;
-  }
-
-  .canvas-toolbar button {
-    flex-shrink: 0;
-    white-space: nowrap;
+  /* Crucial: Stops text/buttons from squishing and cutting off */
+  .canvas-toolbar > * {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    font-size: 0.85rem;
   }
 
   .canvas-info {
     display: none;
   }
 
-  /* MOST IMPORTANT SECTION */
   .viewport-wrapper {
     position: absolute;
     inset: 0;
-    top: 0;
-    bottom: 64px;
-
+    top: 54px; 
+    bottom: 120px; 
     width: 100%;
     height: auto;
-
     overflow: hidden;
     border: none;
     border-radius: 0;
-
     display: block;
-
-    /* Prevent flex/grid resizing issues */
-    min-width: 100vw;
-    min-height: calc(100dvh - 152px);
   }
 
   .viewport {
     position: fixed;
     inset: 0;
-    top: 88px;
-    bottom: 64px;
-
+    top: 134px; 
+    bottom: 120px; 
     width: 100vw;
     height: auto;
-
     overflow: hidden;
     touch-action: none;
-
-    background: #ffffff;
+    background: #0f172a;
   }
 
   .viewport canvas {
     width: 100%;
     height: 100%;
     object-fit: contain;
-
-    /* Prevent browser touch gestures */
     touch-action: none;
   }
 
-  
+  /* --- Footer / Spawn Panel --- */
   .footer-panel {
-    display: none;
-  }
-
-  .cooldown-bar {
-    bottom: 76px;
-    width: calc(100% - 24px);
-  }
-
-  /* Mobile fullscreen button */
-  .fullscreen-btn {
-    right: 12px;
-    bottom: 84px;
-  }
-
-  .mobile-place-ui {
+    display: flex; 
     position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: 76px;
-
-    z-index: 1200;
-
-    display: flex;
-    align-items: center;
-    gap: 12px;
-
-    padding: 10px 12px;
-
-    border-radius: 18px;
-
-    background: rgba(22,22,22,0.9);
-    backdrop-filter: blur(10px);
-
-    border: 1px solid rgba(255,255,255,0.08);
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(20, 20, 20, 0.95);
+    padding: 10px;
+    z-index: 1000;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    border-top: 1px solid rgba(255,255,255,0.08);
   }
 
-  /* Mobile fullscreen palette */
+  .spawn-container {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+
+  /* --- Palette Fix --- */
   .fullscreen-palette {
-    left: 10px;
-    right: 10px;
-    top: auto;
-    bottom: 12px;
-
-    transform: none;
-
-    grid-template-columns: repeat(6, 1fr);
-
-    width: auto;
-    max-width: calc(100vw - 20px);
+    display: flex !important; 
+    position: fixed !important;
+    top: auto !important; /* Overrides the 50% middle positioning */
+    bottom: 60px !important; /* Sits right above the footer */
+    left: 10px !important; 
+    right: 10px !important; 
+    transform: none !important;
+    background: rgba(15, 18, 25, 0.98) !important;
+    padding: 8px !important;
+    border-radius: 12px !important;
+    overflow-x: auto !important;
+    gap: 8px !important;
+    z-index: 1000 !important;
+    width: auto !important;
   }
 
   .fullscreen-palette button {
-    width: 100%;
-    aspect-ratio: 1;
-    height: auto;
+    flex-shrink: 0 !important;
+    width: 32px !important; 
+    height: 32px !important;
   }
 
-  /* Better mobile auth */
+  /* --- Cooldown Bar Fix --- */
+  .cooldown-bar {
+    position: fixed !important;
+    bottom: 115px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: auto !important;
+    min-width: 200px !important;
+    max-width: 90% !important;
+    padding: 6px 12px !important;
+    border-radius: 20px !important;
+    z-index: 1001 !important;
+  }
+
+  .cooldown-bar__label {
+    font-size: 0.75rem !important;
+  }
+
+  .fullscreen-btn {
+    right: 12px;
+    bottom: 160px; /* Moved up slightly to not overlap the palette */
+  }
+
   .auth-card {
     width: calc(100% - 20px);
     padding: 20px;
     border-radius: 18px;
-  }
-
-  .mobile-place-color {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    border: 2px solid rgba(255,255,255,0.18);
-    flex-shrink: 0;
-  }
-
-  .mobile-place-button {
-    flex: 1;
-
-    height: 42px;
-
-    border: none;
-    border-radius: 12px;
-
-    font-weight: 700;
-    font-size: 0.95rem;
-
-    background: #38bdf8;
-    color: white;
-  }
-
-  .mobile-place-button.cooldown {
-    opacity: 0.6;
-    pointer-events: none;
   }
 }
 
@@ -901,4 +869,9 @@ kbd {
 .tool-hand-dragging canvas {
   cursor: grabbing !important;
   user-select: none !important;
+}
+
+/* --- Add this globally to ensure shift-pan shows the open hand --- */
+canvas.shift-pan {
+  cursor: grab !important;
 }

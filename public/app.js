@@ -402,12 +402,21 @@ function redraw() {
   clampOffsets();
   const displayWidth = canvas.width;
   const displayHeight = canvas.height;
+  const ox = Math.round(offsetX);
+  const oy = Math.round(offsetY);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, displayWidth, displayHeight);
-  ctx.imageSmoothingEnabled = false;
 
-  ctx.setTransform(scale, 0, 0, scale, Math.round(offsetX), Math.round(offsetY));
+  // Fill entire viewport with dark blue (outside-canvas area)
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+  // Draw white background only for the board area
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(ox, oy, Math.round(BOARD_WIDTH * scale), Math.round(BOARD_HEIGHT * scale));
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.setTransform(scale, 0, 0, scale, ox, oy);
   ctx.drawImage(bufferCanvas, 0, 0);
 
   drawGrid();
@@ -430,20 +439,27 @@ function clamp(value, min, max) {
 }
 
 function clampOffsets() {
-  // Clamp against BOARD dimensions (1920×1080), not the larger buffer canvas.
   const scaledWidth = BOARD_WIDTH * scale;
   const scaledHeight = BOARD_HEIGHT * scale;
 
+  // Allow panning up to 30% of the viewport outside the canvas edges
+  // so users can see the dark-blue area around the canvas.
+  const padX = Math.round(canvas.width * 0.30);
+  const padY = Math.round(canvas.height * 0.30);
+
   if (canvas.width >= scaledWidth) {
-    offsetX = Math.round((canvas.width - scaledWidth) / 2);
+    // Canvas fits: center it, but still allow a little wiggle
+    const centered = Math.round((canvas.width - scaledWidth) / 2);
+    offsetX = clamp(offsetX, centered - padX, centered + padX);
   } else {
-    offsetX = clamp(offsetX, canvas.width - scaledWidth, 0);
+    offsetX = clamp(offsetX, canvas.width - scaledWidth - padX, padX);
   }
 
   if (canvas.height >= scaledHeight) {
-    offsetY = Math.round((canvas.height - scaledHeight) / 2);
+    const centered = Math.round((canvas.height - scaledHeight) / 2);
+    offsetY = clamp(offsetY, centered - padY, centered + padY);
   } else {
-    offsetY = clamp(offsetY, canvas.height - scaledHeight, 0);
+    offsetY = clamp(offsetY, canvas.height - scaledHeight - padY, padY);
   }
 }
 
@@ -842,15 +858,16 @@ function showVariationPicker(entry, anchorEl) {
   const picker = document.createElement('div');
   picker.className = 'variation-picker';
   picker.style.position = 'fixed';
-  picker.style.zIndex = 1000;
+  picker.style.zIndex = 100000; // Boosted z-index
   picker.style.display = 'grid';
   picker.style.gridTemplateColumns = '40px 56px 40px';
   picker.style.gridTemplateRows = '40px 56px 40px';
   picker.style.gap = '6px';
   picker.style.padding = '8px';
   picker.style.borderRadius = '14px';
-  picker.style.boxShadow = '0 8px 24px rgba(0,0,0,0.45)';
-  picker.style.background = 'var(--surface)';
+  picker.style.boxShadow = '0 8px 32px rgba(0,0,0,0.8)';
+  picker.style.background = '#11171f'; // Fixed: Solid dark color to remove blurriness
+  picker.style.border = '1px solid rgba(255, 255, 255, 0.15)';
 
   const addVariantButton = (hex, onClick) => {
     const btn = document.createElement('button');
@@ -1147,19 +1164,14 @@ function handlePanStart(event) {
   isPanning = true;
   panStartX = event.clientX - offsetX;
   panStartY = event.clientY - offsetY;
-  
-  if (tool === 'hand') {
-    viewport.classList.remove('tool-hand-active');
-    viewport.classList.add('tool-hand-dragging');
-  }
+  // Always force the grabbing cursor regardless of tool
+  viewport.classList.add('tool-hand-dragging');
 }
 
 function handlePanMove(event) {
   if (!isPanning) return;
-
   const proposedX = event.clientX - panStartX;
   const proposedY = event.clientY - panStartY;
-
   const scaledWidth = BOARD_WIDTH * scale;
   const scaledHeight = BOARD_HEIGHT * scale;
 
@@ -1181,7 +1193,6 @@ function handlePanMove(event) {
   offsetY = allowedY;
   redraw();
 
-  // Reset the anchor so clamping doesn't cause a dead zone when changing directions
   if (proposedX !== allowedX) panStartX = event.clientX - allowedX;
   if (proposedY !== allowedY) panStartY = event.clientY - allowedY;
 }
@@ -1189,24 +1200,13 @@ function handlePanMove(event) {
 function handlePanEnd() {
   if (!isPanning) return;
   isPanning = false;
-  
-  if (tool === 'hand') {
-    viewport.classList.remove('tool-hand-dragging');
-    viewport.classList.add('tool-hand-active');
-  }
+  // Remove the grabbing cursor
+  viewport.classList.remove('tool-hand-dragging');
 }
 
 function endAction(event) {
   isMouseDown = false;
-  if (isPanning) {
-    isPanning = false;
-    
-    // Switch cursor look back to an open hand grab state
-    if (tool === 'hand') {
-      viewport.classList.remove('tool-hand-dragging');
-      viewport.classList.add('tool-hand-active');
-    }
-  }
+  handlePanEnd(); 
 }
 
 function resizeViewport() {
@@ -1425,17 +1425,21 @@ window.addEventListener('beforeunload', () => {
   removeClientHeartbeat();
 });
 
-window.addEventListener('load', async () => {
-  await initPalette();
+window.addEventListener('load', () => {
+  // 1. Size the canvas and draw the white board instantly (fixes the blue flash)
+  resizeViewport();
   syncUI();
+
+  // 2. Fetch server data asynchronously in the background
+  initPalette();
   updateAuthState();
+  
+  // 3. Start game loops
   registerClientHeartbeat();
   setInterval(registerClientHeartbeat, CLIENT_HEARTBEAT_MS);
   replayHistory();
-  resizeViewport();
   updateCooldownLabel();
   setInterval(updateCooldownLabel, 250);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
 });
 
 (function () {
@@ -1559,35 +1563,87 @@ if (fullscreenBtn && viewportTarget) {
   });
 }
 
+// --- MOBILE TOUCH LOGIC ---
 let lastTouchDistance = 0;
+let isTouchDragging = false;
+let lastTouchX = 0;
+let lastTouchY = 0;
+
+viewport.addEventListener("touchstart", (e) => {
+  if (e.touches.length === 1) {
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
+    isTouchDragging = false;
+  } else if (e.touches.length === 2) {
+    e.preventDefault(); // Stop native 2-finger zoom gestures
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    lastTouchDistance = Math.hypot(dx, dy);
+  }
+}, { passive: false });
 
 viewport.addEventListener("touchmove", (e) => {
+  e.preventDefault(); // Stops pulling-to-refresh & native web scroll
 
-  if (e.touches.length === 2) {
+  if (e.touches.length === 1) {
+    const dx = e.touches[0].clientX - lastTouchX;
+    const dy = e.touches[0].clientY - lastTouchY;
+    
+    // Threshold to prevent jittering taps
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      isTouchDragging = true;
+    }
 
-    const dx =
-      e.touches[0].clientX - e.touches[1].clientX;
-
-    const dy =
-      e.touches[0].clientY - e.touches[1].clientY;
-
+    offsetX += dx;
+    offsetY += dy;
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
+    
+    clampOffsets();
+    redraw();
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
     const distance = Math.hypot(dx, dy);
 
     if (lastTouchDistance) {
-
       const delta = distance - lastTouchDistance;
+      const centerClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const centerClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
-      zoom += delta * 0.01;
+      // Zoom towards center of the pinch
+      const rect = viewport.getBoundingClientRect();
+      const mouseX = centerClientX - rect.left;
+      const mouseY = centerClientY - rect.top;
 
-      updateZoom();
+      const boardX = (mouseX - offsetX) / scale;
+      const boardY = (mouseY - offsetY) / scale;
+
+      let nextZoom = scale * (1 + delta * 0.005);
+      nextZoom = clamp(nextZoom, 0.05, MAX_ZOOM_SCALE);
+      scale = nextZoom;
+
+      offsetX = mouseX - boardX * scale;
+      offsetY = mouseY - boardY * scale;
+
+      clampOffsets();
+      zoomInput.value = Math.round(scale * 100);
+      if (zoomLevelLabel) zoomLevelLabel.textContent = `${Math.round(scale * 100)}%`;
+      redraw();
     }
-
     lastTouchDistance = distance;
-
   }
-
 }, { passive: false });
 
-viewport.addEventListener("touchend", () => {
-  lastTouchDistance = 0;
+viewport.addEventListener("touchend", (e) => {
+  if (e.touches.length < 2) {
+    lastTouchDistance = 0;
+  }
+  
+  // TAP TO PLACE: If it was 1 finger, it ended, and they didn't drag
+  if (!isTouchDragging && e.changedTouches.length === 1 && e.touches.length === 0) {
+     const touch = e.changedTouches[0];
+     const coords = getCanvasCoords(touch.clientX, touch.clientY);
+     applyToolAtCell(coords.x, coords.y);
+  }
 });
