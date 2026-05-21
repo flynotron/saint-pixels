@@ -207,6 +207,7 @@ async function updateAuthState() {
       currentUser = null;
       currentUserLabel.textContent = 'Guest';
       authOverlay.classList.remove('hidden');
+      document.body.classList.add('auth-open');
       authUsername.focus();
       return;
     }
@@ -216,6 +217,7 @@ async function updateAuthState() {
     currentUserLabel.textContent = data.username;
     authOverlay.classList.add('hidden');
     authOverlay.style.display = 'none';
+    document.body.classList.remove('auth-open');
     authMessage.textContent = '';
     updateCooldownLabel();
   } catch (error) {
@@ -223,6 +225,7 @@ async function updateAuthState() {
     currentUserLabel.textContent = 'Guest';
     authOverlay.classList.remove('hidden');
     authOverlay.style.display = 'grid';
+    document.body.classList.add('auth-open');
     authUsername.focus();
   }
 }
@@ -350,92 +353,116 @@ function drawGrid() {
   const dpr = window.devicePixelRatio || 1;
   overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
   overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-  
-  // Scale overlay context for CSS math
+
+  if (!gridEnabled || scale < 4) return;
+
+  // Render in pure CSS space to avoid matrix fraction blurring
   overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  
-  overlayCtx.setLineDash([]);
+  overlayCtx.beginPath();
   overlayCtx.lineWidth = 1;
-  if (!gridEnabled) return;
+  overlayCtx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
 
   const ox = Math.round(offsetX);
   const oy = Math.round(offsetY);
-  const cssWidth = overlay.width / dpr;
-  const cssHeight = overlay.height / dpr;
 
-  const startX = Math.floor(Math.max(0, -ox) / scale);
-  const startY = Math.floor(Math.max(0, -oy) / scale);
-  const endX = Math.ceil(Math.min(BOARD_WIDTH, (cssWidth - ox) / scale));
-  const endY = Math.ceil(Math.min(BOARD_HEIGHT, (cssHeight - oy) / scale));
+  // CSS-pixel viewport dimensions
+  const vpW = overlay.width / dpr;
+  const vpH = overlay.height / dpr;
 
-  if (scale >= 3) {
-    overlayCtx.save();
-    overlayCtx.strokeStyle = 'rgba(0,0,0,0.18)';
-    overlayCtx.lineWidth = 1;
-    overlayCtx.setLineDash([2, 2]);
+  // Board extent in CSS pixels
+  const boardRight  = ox + Math.round(BOARD_WIDTH  * scale);
+  const boardBottom = oy + Math.round(BOARD_HEIGHT * scale);
 
-    for (let gx = startX; gx <= endX; gx++) {
-      const px = Math.round(gx * scale + ox);
-      overlayCtx.beginPath();
-      overlayCtx.moveTo(px, Math.round(startY * scale + oy));
-      overlayCtx.lineTo(px, Math.round(endY * scale + oy));
-      overlayCtx.stroke();
-    }
+  // Clamp drawing area to the board bounds
+  const drawLeft   = Math.max(0, ox);
+  const drawTop    = Math.max(0, oy);
+  const drawRight  = Math.min(vpW, boardRight);
+  const drawBottom = Math.min(vpH, boardBottom);
 
-    for (let gy = startY; gy <= endY; gy++) {
-      const py = Math.round(gy * scale + oy);
-      overlayCtx.beginPath();
-      overlayCtx.moveTo(Math.round(startX * scale + ox), py);
-      overlayCtx.lineTo(Math.round(endX * scale + ox), py);
-      overlayCtx.stroke();
-    }
-    overlayCtx.restore();
+  // First visible board column/row index (the grid line to the LEFT/ABOVE the viewport edge)
+  const startCol = Math.max(0, Math.floor(-ox / scale));
+  const startRow = Math.max(0, Math.floor(-oy / scale));
+
+  // Last visible column/row index (add 1 to ensure we cover the right/bottom edge)
+  const endCol = Math.min(BOARD_WIDTH,  Math.ceil((drawRight  - ox) / scale) + 1);
+  const endRow = Math.min(BOARD_HEIGHT, Math.ceil((drawBottom - oy) / scale) + 1);
+
+  // Vertical lines — each position is derived independently from the world-space
+  // column index so floating-point rounding NEVER accumulates across iterations.
+  for (let col = startCol; col <= endCol; col++) {
+    const x = Math.round(col * scale + ox);
+    if (x < drawLeft || x > drawRight) continue;
+    const px = x + 0.5;
+    overlayCtx.moveTo(px, drawTop);
+    overlayCtx.lineTo(px, drawBottom);
   }
 
-  overlayCtx.save();
-  overlayCtx.strokeStyle = 'rgba(0,0,0,0.55)';
-  overlayCtx.setLineDash([]);
-  overlayCtx.strokeRect(ox, oy, Math.round(BOARD_WIDTH * scale), Math.round(BOARD_HEIGHT * scale));
-  overlayCtx.restore();
+  // Horizontal lines — same independent derivation per row index.
+  for (let row = startRow; row <= endRow; row++) {
+    const y = Math.round(row * scale + oy);
+    if (y < drawTop || y > drawBottom) continue;
+    const py = y + 0.5;
+    overlayCtx.moveTo(drawLeft, py);
+    overlayCtx.lineTo(drawRight, py);
+  }
+
+  overlayCtx.stroke();
+  
+  // Draw the outer board border
+  overlayCtx.strokeStyle = 'rgba(0,0,0,0.6)';
+  const boardW = Math.round(BOARD_WIDTH * scale);
+  const boardH = Math.round(BOARD_HEIGHT * scale);
+  overlayCtx.strokeRect(ox + 0.5, oy + 0.5, boardW, boardH);
 }
+let isRedrawPending = false;
 
 function redraw() {
-  clampOffsets();
-  const dpr = window.devicePixelRatio || 1;
-  const displayWidth = canvas.width;
-  const displayHeight = canvas.height;
-  const ox = Math.round(offsetX);
-  const oy = Math.round(offsetY);
+  if (isRedrawPending) return;
+  isRedrawPending = true;
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  requestAnimationFrame(() => {
+    isRedrawPending = false;
+    clampOffsets();
+    
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Lock offsets to exact whole numbers to completely eliminate panning jitter
+    const ox = Math.round(offsetX);
+    const oy = Math.round(offsetY);
+    
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Fill outer boundary
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(0, 0, displayWidth, displayHeight);
+    // Keep pixels crisp at any zoom level
+    ctx.imageSmoothingEnabled = false;
 
-  // Scale context down by DPR so CSS logic math still works perfectly
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    
+    const boardW = Math.round(BOARD_WIDTH * scale);
+    const boardH = Math.round(BOARD_HEIGHT * scale);
+    
+    // Draw the white board background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(ox, oy, boardW, boardH);
 
-  // Draw board background
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(ox, oy, Math.round(BOARD_WIDTH * scale), Math.round(BOARD_HEIGHT * scale));
+    // Draw the pixel art buffer natively scaled to integer bounds
+    ctx.drawImage(bufferCanvas, 0, 0, BOARD_WIDTH, BOARD_HEIGHT, ox, oy, boardW, boardH);
 
-  // Must be false to keep pixel art crisp
-  ctx.imageSmoothingEnabled = false;
-  
-  // Apply zoom scale AND DPR simultaneously directly into the transform matrix
-  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, ox * dpr, oy * dpr);
-  ctx.drawImage(bufferCanvas, 0, 0);
-
-  drawGrid();
-  drawCursor();
+    drawGrid();
+    drawCursor();
+  });
 }
 
 function getCanvasCoords(clientX, clientY) {
-  // Use viewport rect — canvas pixel dimensions are sized from viewport, not from canvas CSS size
+  // Use viewport rect — canvas pixel dimensions are sized from viewport, not from canvas CSS size.
+  // IMPORTANT: use Math.round(offsetX/Y) here to match the rounded offsets used by drawCursor,
+  // so tap-to-place lands on the same cell the cursor highlight is drawn on.
   const rect = viewport.getBoundingClientRect();
-  const x = (clientX - rect.left - offsetX) / scale;
-  const y = (clientY - rect.top - offsetY) / scale;
+  const ox = Math.round(offsetX);
+  const oy = Math.round(offsetY);
+  const x = (clientX - rect.left - ox) / scale;
+  const y = (clientY - rect.top - oy) / scale;
   return {
     x: clamp(Math.floor(x), 0, BOARD_WIDTH - 1),
     y: clamp(Math.floor(y), 0, BOARD_HEIGHT - 1)
@@ -447,27 +474,31 @@ function clamp(value, min, max) {
 }
 
 function clampOffsets() {
+  const dpr = window.devicePixelRatio || 1;
+  // Use CSS pixel dimensions so all comparisons are in the same unit as scale, offsetX, offsetY.
+  const vpW = canvas.width / dpr;
+  const vpH = canvas.height / dpr;
   const scaledWidth = BOARD_WIDTH * scale;
   const scaledHeight = BOARD_HEIGHT * scale;
 
   // Allow panning up to 30% of the viewport outside the canvas edges
   // so users can see the dark-blue area around the canvas.
-  const padX = Math.round(canvas.width * 0.30);
-  const padY = Math.round(canvas.height * 0.30);
+  const padX = Math.round(vpW * 0.30);
+  const padY = Math.round(vpH * 0.30);
 
-  if (canvas.width >= scaledWidth) {
+  if (vpW >= scaledWidth) {
     // Canvas fits: center it, but still allow a little wiggle
-    const centered = Math.round((canvas.width - scaledWidth) / 2);
+    const centered = Math.round((vpW - scaledWidth) / 2);
     offsetX = clamp(offsetX, centered - padX, centered + padX);
   } else {
-    offsetX = clamp(offsetX, canvas.width - scaledWidth - padX, padX);
+    offsetX = clamp(offsetX, vpW - scaledWidth - padX, padX);
   }
 
-  if (canvas.height >= scaledHeight) {
-    const centered = Math.round((canvas.height - scaledHeight) / 2);
+  if (vpH >= scaledHeight) {
+    const centered = Math.round((vpH - scaledHeight) / 2);
     offsetY = clamp(offsetY, centered - padY, centered + padY);
   } else {
-    offsetY = clamp(offsetY, canvas.height - scaledHeight - padY, padY);
+    offsetY = clamp(offsetY, vpH - scaledHeight - padY, padY);
   }
 }
 
@@ -545,45 +576,41 @@ function hexToRgba(hex) {
 }
 
 function drawCursor() {
+  if (!cursorPosition || tool === 'hand' || tool === 'none') return;
+
   const dpr = window.devicePixelRatio || 1;
-  if (!cursorPosition || tool === 'hand') return;
-
   const { x, y } = cursorPosition;
-  const ox = Math.round(offsetX);
-  const oy = Math.round(offsetY);
-  const px = Math.floor(x * scale + ox);
-  const py = Math.floor(y * scale + oy);
-  const size = Math.max(1, Math.round(pixelSize * scale));
-
-  // Scale border thickness with zoom so it stays proportional on mobile pinch-zoom.
-  // Clamp between 0.5px (tiny zoom) and 2px (large zoom) so it's always visible but never chunky.
-  const borderWidth = clamp(scale * 0.15, 0.5, 2);
-  const outerOffset = borderWidth / 2;
 
   overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  overlayCtx.save();
-  overlayCtx.setLineDash([]);
 
-  const rgba = hexToRgba(color || '#000000');
-  overlayCtx.fillStyle = `rgba(${rgba[0]}, ${rgba[1]}, ${rgba[2]}, 0.35)`;
-  overlayCtx.fillRect(px, py, size, size);
+  const ox = Math.round(offsetX);
+  const oy = Math.round(offsetY);
+  
+  const px = Math.floor(x * scale + ox);
+  const py = Math.floor(y * scale + oy);
+  
+  // Calculating dynamic width based on next pixel coordinate avoids any 1px overlap gaps
+  const sizeX = Math.floor((x + 1) * scale + ox) - px;
+  const sizeY = Math.floor((y + 1) * scale + oy) - py;
 
-  // Dark outer border — inset by half its own width so it sits just outside the pixel
-  overlayCtx.strokeStyle = 'rgba(0,0,0,0.5)';
-  overlayCtx.lineWidth = borderWidth * 2;
-  overlayCtx.strokeRect(
-    px - outerOffset,
-    py - outerOffset,
-    size + borderWidth,
-    size + borderWidth
-  );
+  // FIX: Inject the currently selected color into the cursor fill (Eraser shows white)
+  const activeColor = tool === 'eraser' ? '#ffffff' : (color || '#000000');
+  const rgba = hexToRgba(activeColor);
+  overlayCtx.fillStyle = `rgba(${rgba[0]}, ${rgba[1]}, ${rgba[2]}, 0.45)`;
+  overlayCtx.fillRect(px, py, sizeX, sizeY);
 
-  // Bright inner border — drawn flush with the pixel edge
-  overlayCtx.strokeStyle = 'rgba(255,255,255,0.95)';
-  overlayCtx.lineWidth = borderWidth;
-  overlayCtx.strokeRect(px, py, size, size);
+  // Ensure border stays exactly 1px thick at all zoom levels
+  overlayCtx.lineWidth = 1;
 
-  overlayCtx.restore();
+  // Outer dark border (+0.5 centers the stroke perfectly)
+  overlayCtx.strokeStyle = 'rgba(0,0,0,0.8)';
+  overlayCtx.strokeRect(px - 0.5, py - 0.5, sizeX + 1, sizeY + 1);
+
+  // Inner white border — only draw when the cell is large enough that it won't overdraw the fill
+  if (sizeX >= 4 && sizeY >= 4) {
+    overlayCtx.strokeStyle = 'rgba(255,255,255,0.9)';
+    overlayCtx.strokeRect(px + 0.5, py + 0.5, sizeX - 1, sizeY - 1);
+  }
 }
 
 function moveCursor(dx, dy) {
@@ -633,6 +660,7 @@ function moveCursorFromArrow(dx, dy, event) {
 
 function applyToolAtCell(x, y) {
   if (x < 0 || y < 0 || x >= BOARD_WIDTH || y >= BOARD_HEIGHT) return;
+  if (tool === 'none') return;
   updateStatus(x, y);
   cursorPosition = { x, y };
 
@@ -1011,6 +1039,11 @@ function setTool(newTool) {
     viewport.classList.add('tool-hand-active');
     canvas.style.cursor = 'grab';
     overlay.style.cursor = 'grab';
+  } else if (tool === 'none') {
+    viewport.classList.remove('tool-hand-active');
+    viewport.classList.remove('tool-hand-dragging');
+    canvas.style.cursor = 'default';
+    overlay.style.cursor = 'default';
   } else {
     viewport.classList.remove('tool-hand-active');
     viewport.classList.remove('tool-hand-dragging');
@@ -1194,18 +1227,22 @@ function handlePanMove(event) {
   const scaledWidth = BOARD_WIDTH * scale;
   const scaledHeight = BOARD_HEIGHT * scale;
 
+  const _dpr = window.devicePixelRatio || 1;
+  const _vpW = canvas.width / _dpr;
+  const _vpH = canvas.height / _dpr;
+
   let allowedX;
-  if (canvas.width >= scaledWidth) {
-    allowedX = Math.round((canvas.width - scaledWidth) / 2);
+  if (_vpW >= scaledWidth) {
+    allowedX = Math.round((_vpW - scaledWidth) / 2);
   } else {
-    allowedX = clamp(proposedX, canvas.width - scaledWidth, 0);
+    allowedX = clamp(proposedX, _vpW - scaledWidth, 0);
   }
 
   let allowedY;
-  if (canvas.height >= scaledHeight) {
-    allowedY = Math.round((canvas.height - scaledHeight) / 2);
+  if (_vpH >= scaledHeight) {
+    allowedY = Math.round((_vpH - scaledHeight) / 2);
   } else {
-    allowedY = clamp(proposedY, canvas.height - scaledHeight, 0);
+    allowedY = clamp(proposedY, _vpH - scaledHeight, 0);
   }
 
   offsetX = allowedX;
@@ -1612,6 +1649,7 @@ let lastTouchDistance = 0;
 let isTouchDragging = false;
 let lastTouchX = 0;
 let lastTouchY = 0;
+
 /** True when a touch started on a UI control (palette, toolbar, etc.) — suppresses tap-to-place. */
 let touchStartedOnUI = false;
 
@@ -1622,6 +1660,7 @@ const _uiLayersInsideViewport = [
   document.getElementById('fullscreen-palette'),
   document.getElementById('fullscreen-btn'),
 ];
+
 document.addEventListener("touchstart", (e) => {
   const target = e.target;
   const insideViewport = viewport.contains(target);
@@ -1700,7 +1739,7 @@ viewport.addEventListener("touchend", (e) => {
     lastTouchDistance = 0;
   }
   
-  // FIX: If one finger is left on the screen after a pinch, 
+  // If one finger is left on the screen after a pinch, 
   // re-anchor the coordinates to that specific finger so the camera doesn't jump.
   if (e.touches.length === 1) {
     lastTouchX = e.touches[0].clientX;

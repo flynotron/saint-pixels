@@ -569,11 +569,22 @@ kbd {
    └──────────────────────────────────┘
    ===================================================== */
 @media (max-width: 720px) {
+
+  /* ── Zone-height tokens — change once, fixes everywhere ── */
+  :root {
+    --mob-topbar-h: 48px;
+    --mob-toolbar-h: 40px;
+    --mob-top-total: 88px;   /* topbar + toolbar */
+    --mob-palette-h: 46px;
+    --mob-spawn-h:   48px;
+    --mob-bottom-total: 94px; /* palette + spawn */
+  }
  
   /* ── Base ───────────────────────────────────── */
   html, body {
     overflow: hidden !important;
     overscroll-behavior: none;
+    /* dvh tracks the visual viewport so browser chrome doesn't eat space */
     height: 100dvh;
   }
  
@@ -586,6 +597,7 @@ kbd {
   .main-grid {
     display: block;
     margin: 0;
+    /* fill remaining height below topbar+toolbar */
     height: 100dvh;
     position: relative;
   }
@@ -632,16 +644,17 @@ kbd {
     position: fixed;
     top: 0; left: 0; right: 0;
     z-index: 300;
-    height: 48px;
+    height: var(--mob-topbar-h);
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
     gap: 6px;
-    /* scrollable so nothing gets cut */
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
-    padding: 0 50px 0 8px; /* right pad for color swatch */
+    /* right pad leaves room for the fixed color-picker circle;
+       left pad respects notch/safe-area on iPhone etc. */
+    padding: 0 50px 0 max(8px, env(safe-area-inset-left));
     border-radius: 0;
     border-bottom: 1px solid rgba(255,255,255,0.08);
     background: rgba(16, 22, 30, 0.97);
@@ -719,9 +732,9 @@ kbd {
      ═══════════════════════════════════════════ */
   .canvas-toolbar {
     position: fixed;
-    top: 48px; left: 0; right: 0;
+    top: var(--mob-topbar-h); left: 0; right: 0;
     z-index: 299;
-    height: 40px;
+    height: var(--mob-toolbar-h);
     display: flex;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -761,9 +774,10 @@ kbd {
      ═══════════════════════════════════════════ */
   .canvas-panel {
     position: fixed;
-    top: 88px;      /* 48 topbar + 40 toolbar */
+    top: var(--mob-top-total);     /* 48 topbar + 40 toolbar */
     left: 0; right: 0;
-    bottom: 94px;   /* 46 palette + 48 spawn */
+    /* env() adds home-bar clearance on notched iPhones */
+    bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px));
     padding: 0;
     border-radius: 0;
     border: none;
@@ -813,7 +827,7 @@ kbd {
   /* ── Cooldown bar ──────────────────────────── */
   .cooldown-bar {
     position: fixed !important;
-    bottom: 102px !important;
+    bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 8px) !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: auto !important;
@@ -830,7 +844,7 @@ kbd {
   .fullscreen-btn {
     position: fixed !important;
     right: 16px !important;
-    bottom: 110px !important; /* Pushed up slightly to ensure it clears the bottom mobile OS bars */
+    bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 18px) !important;
     z-index: 2147483647 !important; /* Absolute maximum possible z-index */
     pointer-events: auto !important; /* Force it to accept clicks */
     display: flex !important;
@@ -850,7 +864,7 @@ kbd {
      ═══════════════════════════════════════════ */
   .tool-list {
     position: fixed !important;
-    bottom: 102px !important;   /* above palette+spawn, below cooldown bar */
+    bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 6px) !important;   /* above palette+spawn */
     left: 8px !important;
     top: auto !important;
     transform: none !important;
@@ -909,12 +923,12 @@ kbd {
   .fullscreen-palette {
     display: flex !important;
     position: fixed !important;
-    bottom: 48px !important;
+    bottom: calc(var(--mob-spawn-h) + env(safe-area-inset-bottom, 0px)) !important;
     left: 0 !important;
     right: 0 !important;
     top: auto !important;
     transform: none !important;
-    height: 46px !important;
+    height: var(--mob-palette-h) !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
@@ -954,7 +968,10 @@ kbd {
     position: fixed !important;
     bottom: 0 !important;
     left: 0 !important; right: 0 !important;
-    height: 48px !important;
+    /* min-height covers the bar; padding-bottom handles the home indicator */
+    min-height: var(--mob-spawn-h) !important;
+    height: calc(var(--mob-spawn-h) + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
