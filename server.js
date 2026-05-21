@@ -1,34 +1,22 @@
 const express = require('express');
 const Database = require('better-sqlite3');
 const path = require('path');
-const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const sessions = new Map();
-const userCooldowns = new Map(); // Add this
 const app = express();
 const dbFile = path.join(__dirname, 'database.sqlite');
 const db = new Database(dbFile);
 
+const { getCooldown, resetCooldown } = require ('./src/helpers/cooldown.js');
+const { createSession, closeSession, getSession } = require('./src/helpers/session.js');
+const { hashPassword } = require('./src/helpers/password.js');
+const { initializeActions } = require('./src/setup/actions.js');
+const { initializeDatabase } = require('./src/setup/database.js');
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.post('/api/pixel', (req, res) => {
-  const session = getSession(req);
-  if (!session) return res.status(401).json({ error: 'Unauthorized' });
-
-  const now = Date.now();
-  const lastTime = userCooldowns.get(session.username) || 0;
-
-  if (now - lastTime < 5000) {
-    return res.status(429).json({ error: "Cooldown active. Please wait." });
-  }
-
-  // Update the cooldown
-  userCooldowns.set(session.username, now);
-
-  // ... proceed with saving the pixel to the database ...
-  return res.json({ success: true });
-});
+initializeDatabase(db);
+initializeActions(app);
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -37,74 +25,6 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Please try again later.' }
 });
-
-function hashPassword(password, username) {
-  const user = typeof username === 'string' ? username : '';
-  const pwd = typeof password === 'string' ? password : '';
-  // Use the username as the salt source to ensure unique hashes for identical passwords
-  const salt = crypto.createHash('sha256').update(user).digest('hex');
-  return crypto.createHmac('sha512', salt).update(pwd).digest('hex');
-}
-
-function createSession(username) {
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, { username, created: Date.now() });
-  return token;
-}
-
-function getSession(req) {
-  const auth = req.headers.authorization || '';
-  const [type, token] = auth.split(' ');
-  if (type === 'Bearer' && sessions.has(token)) {
-    return sessions.get(token);
-  }
-  return null;
-}
-
-// Initialize database tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS accounts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    ip TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS palette (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    label TEXT NOT NULL,
-    color TEXT NOT NULL
-  );
-`);
-
-// Populate default palette if empty
-try {
-  const countStmt = db.prepare('SELECT COUNT(*) AS count FROM palette');
-  const result = countStmt.get();
-  if (result.count === 0) {
-    const insertStmt = db.prepare('INSERT INTO palette (label, color) VALUES (?, ?)');
-    const defaultPalette = [
-      ['Black', '000000'],
-      ['White', 'ffffff'],
-      ['Red', 'ef4444'],
-      ['Orange', 'fb923c'],
-      ['Yellow', 'facc15'],
-      ['Green', '22c55e'],
-      ['Cyan', '06b6d4'],
-      ['Blue', '3b82f6'],
-      ['Indigo', '6366f1'],
-      ['Violet', '8b5cf6'],
-      ['Pink', 'ec4899']
-    ];
-    const insertMany = db.transaction((colors) => {
-      colors.forEach(([label, color]) => insertStmt.run(label, color));
-    });
-    insertMany(defaultPalette);
-  }
-} catch (err) {
-  console.error('Failed to populate default palette:', err);
-}
 
 app.post('/api/register', (req, res) => {
   const { username, password } = req.body || {};
@@ -178,10 +98,8 @@ app.get('/api/me', (req, res) => {
 app.post('/api/logout', (req, res) => {
   const auth = req.headers.authorization || '';
   const [, token] = auth.split(' ');
-  if (token && sessions.has(token)) {
-    sessions.delete(token);
-  }
-  res.json({ success: true });
+  const result = closeSession(token);
+  res.json({ success: result });
 });
 
 const paletteLimiter = rateLimit({
