@@ -52,24 +52,31 @@ button {
 
 .topbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 14px 20px;
+  flex-wrap: nowrap;
+  gap: 10px 14px;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 20px;
+  padding: 10px 16px;
   border: 1px solid var(--border);
   border-radius: 24px;
   background: rgba(66, 66, 66, 0.9);
   box-shadow: var(--shadow);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+  min-height: 54px;
+  flex-shrink: 0;
 }
 
 .brand {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
   gap: 6px 6px;
-  min-width: min(100%, 220px);
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .contribute-link {
@@ -106,11 +113,11 @@ button {
 
 .status {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px 10px;
-  flex: 1;
+  gap: 6px 8px;
+  flex-shrink: 0;
   min-width: 0;
 }
 
@@ -259,8 +266,10 @@ button.compact {
   min-height: 0;
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 0px;
-  /* Dark blue outside the canvas area */
-  background: #0f172a;
+  /* Subtle dot grid so users can orient at low zoom */
+  background-color: #0f172a;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px);
+  background-size: 24px 24px;
   overflow: hidden;
   position: relative;
   display: flex;
@@ -540,225 +549,476 @@ kbd {
   color: #fca5a5;
 }
 
-@media (max-width: 1100px) {
-  .main-grid {
-    grid-template-columns: 1fr;
-  }
-}
+/* =====================================================
+   MOBILE UI — ≤ 720 px
 
+   All zones are position:fixed with explicit pixel coords:
+   ┌──────────────────────────────────┐  top:0
+   │ TOPBAR  SP· | ·Tool·Color·Zoom · │  h:48px  scrollable
+   ├──────────────────────────────────┤  top:48px
+   │ TOOLBAR  Zoom──┤Grid│Clear│Exp·  │  h:40px  scrollable
+   ├──────────────────────────────────┤  top:88px
+   │                                  │
+   │          CANVAS VIEWPORT         │  fills to bottom:94px
+   │                                  │
+   │  [cooldown bar overlay]          │
+   ├──────────────────────────────────┤  bottom:48px
+   │ ✏️⬜ │ ●  ●  ●  ●  ●  ●  ●  →   │  h:46px palette+tools
+   ├──────────────────────────────────┤  bottom:0
+   │  X___  Y___  4500  [Go]          │  h:48px  spawn
+   └──────────────────────────────────┘
+   ===================================================== */
 @media (max-width: 720px) {
-
-  html,
-  body {
-    overflow: hidden !important; 
-    overscroll-behavior: none;   
+ 
+  /* ── Base ───────────────────────────────────── */
+  html, body {
+    overflow: hidden !important;
+    overscroll-behavior: none;
     height: 100dvh;
   }
-
+ 
   .app-shell {
     padding: 0;
     height: 100dvh;
     overflow: hidden;
   }
-
+ 
   .main-grid {
     display: block;
-    height: 100%;
-    margin-top: 0;
+    margin: 0;
+    height: 100dvh;
+    position: relative;
   }
-
-  .controls-panel {
-    display: none;
-  }
-
-  /* --- Topbar & Username Fix --- */
-  .topbar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 1000;
-    border-radius: 0;
-    padding: 10px 12px;
-    gap: 10px;
-    backdrop-filter: blur(12px);
-    display: flex;
-    flex-wrap: wrap; /* Allows username to drop down rather than cut off */
-    justify-content: space-between;
-  }
-
-  .brand h1 {
-    font-size: 1.1rem;
-  }
-
+ 
+  /* ── Hide things we don't want at all ──────── */
   .brand-tagline,
   .contribute-link {
-    display: none;
+    display: none !important;
   }
-
+ 
+  /* ── controls-panel: zero-size ghost so children can escape ──
+     MUST NOT be display:none — that prevents children from rendering.
+     Collapse to 0×0, overflow:visible so .tool-list/.color-picker
+     can position:fixed themselves out of it. */
+  .controls-panel {
+    position: fixed !important;
+    top: 0 !important; left: 0 !important;
+    width: 0 !important; height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important; margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    z-index: 399 !important;
+    gap: 0 !important;
+    display: flex !important;
+  }
+ 
+  .controls-panel .panel { display: none !important; }
+  .controls-panel .panel:first-child {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important; left: 0 !important;
+    width: 0 !important; height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important; margin: 0 !important;
+  }
+  .controls-panel .panel:first-child > h2 { display: none !important; }
+ 
+  /* ═══════════════════════════════════════════
+     TOPBAR (h:48px) — scrollable, brand + status chips
+     ═══════════════════════════════════════════ */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 300;
+    height: 48px;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    /* scrollable so nothing gets cut */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    padding: 0 50px 0 8px; /* right pad for color swatch */
+    border-radius: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: rgba(16, 22, 30, 0.97);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: none;
+    min-height: unset;
+  }
+  .topbar::-webkit-scrollbar { display: none; }
+ 
+  /* Brand: compact wordmark */
+  .brand {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding-right: 4px;
+  }
+  .brand h1 {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+ 
+  /* Status chips sit inline in the scrollable topbar */
   .status {
-    justify-content: flex-start;
-    flex-wrap: wrap; 
+    display: flex !important;
+    position: static !important;
     flex-shrink: 0;
-    max-width: 100%;
+    flex-wrap: nowrap;
+    gap: 5px;
+    align-items: center;
+    overflow: visible;
+    pointer-events: none;
   }
-
+ 
   .status-chip {
+    pointer-events: auto;
+    padding: 3px 7px;
+    gap: 4px;
+    background: rgba(255,255,255,0.07) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 8px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .status-chip__label { font-size: 0.52rem; letter-spacing: 0.05em; }
+  .status-chip__value { font-size: 0.72rem; }
+ 
+  /* Hide username/logout and Live Players — too verbose */
+  .status-chip--user,
+  .status-chip:nth-child(2) { display: none !important; }
+  #logoutButton { display: none !important; }
+ 
+  /* Color picker: fixed circle at topbar right edge */
+  .color-picker {
+    position: fixed;
+    top: 6px; right: 8px;
+    z-index: 401;
+    margin: 0;
+    display: flex;
+    align-items: center;
+  }
+  .color-picker input[type="color"] {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.22);
+    cursor: pointer;
+    padding: 2px;
+    background: transparent;
+  }
+ 
+  /* ═══════════════════════════════════════════
+     TOOLBAR (h:40px, top:48px) — zoom/grid/clear/export + coords
+     ═══════════════════════════════════════════ */
+  .canvas-toolbar {
+    position: fixed;
+    top: 48px; left: 0; right: 0;
+    z-index: 299;
+    height: 40px;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    padding: 5px 8px;
+    gap: 7px;
+    align-items: center;
+    background: rgba(12, 17, 25, 0.97);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .canvas-toolbar::-webkit-scrollbar { display: none; }
+  .canvas-toolbar > * { flex-shrink: 0; white-space: nowrap; font-size: 0.75rem; }
+  .canvas-toolbar label {
+    display: inline-flex; align-items: center;
+    gap: 5px; color: var(--muted); font-size: 0.75rem;
+  }
+  .canvas-toolbar input[type="range"] { width: 75px; }
+  .canvas-toolbar .toggle-btn,
+  .canvas-toolbar .accent {
+    padding: 3px 9px; border-radius: 8px;
+    font-size: 0.75rem; line-height: 1.4;
+  }
+ 
+  /* Coordinates — shown in toolbar on mobile */
+  .canvas-info {
+    display: inline-flex !important;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--muted);
+    white-space: nowrap;
     flex-shrink: 0;
   }
-
+ 
+  /* ═══════════════════════════════════════════
+     CANVAS (top:88px, bottom:94px)
+     ═══════════════════════════════════════════ */
   .canvas-panel {
     position: fixed;
-    inset: 0;
-    top: 80px;
+    top: 88px;      /* 48 topbar + 40 toolbar */
+    left: 0; right: 0;
+    bottom: 94px;   /* 46 palette + 48 spawn */
     padding: 0;
     border-radius: 0;
     border: none;
+    background: #0f172a;
     overflow: hidden;
-    background: #2b2b2b;
-  }
-
-  /* --- Toolbar Fix (Zoom, Export, Coords) --- */
-  .canvas-toolbar {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0; 
-    bottom: auto;
-    z-index: 1000;
     display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto; /* Allows swiping left/right to see tools */
-    overflow-y: hidden;
-    padding: 10px;
-    gap: 12px;
-    background: rgba(20, 20, 20, 0.88);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    flex-direction: column;
+    gap: 0;
+    z-index: 1;
   }
-  
-  .canvas-toolbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Crucial: Stops text/buttons from squishing and cutting off */
-  .canvas-toolbar > * {
-    flex-shrink: 0 !important;
-    white-space: nowrap !important;
-    font-size: 0.85rem;
-  }
-
-  .canvas-info {
-    display: none;
-  }
-
+ 
   .viewport-wrapper {
-    position: absolute;
-    inset: 0;
-    top: 54px; 
-    bottom: 120px; 
-    width: 100%;
-    height: auto;
+    flex: 1;
+    min-height: 0;
+    position: relative;
     overflow: hidden;
     border: none;
     border-radius: 0;
-    display: block;
-  }
-
-  .viewport {
-    position: fixed;
-    inset: 0;
-    top: 134px; 
-    bottom: 120px; 
-    width: 100vw;
-    height: auto;
-    overflow: hidden;
-    touch-action: none;
     background: #0f172a;
+    display: flex;
   }
-
-  .viewport canvas {
+ 
+  /* Dot grid pseudo-element on mobile too */
+  .viewport-wrapper::before {
+    background-size: 20px 20px;
+  }
+ 
+  .viewport {
+    flex: 1;
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    position: relative;
+    overflow: hidden;
+    touch-action: none;
+    z-index: 1;
+  }
+ 
+  /* Canvas elements fill the viewport exactly — no CSS distortion */
+  .viewport canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
     touch-action: none;
   }
-
-  /* --- Footer / Spawn Panel --- */
-  .footer-panel {
-    display: flex; 
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(20, 20, 20, 0.95);
-    padding: 10px;
-    z-index: 1000;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    border-top: 1px solid rgba(255,255,255,0.08);
-  }
-
-  .spawn-container {
-    flex-wrap: nowrap;
-    white-space: nowrap;
-  }
-
-  /* --- Palette Fix --- */
-  .fullscreen-palette {
-    display: flex !important; 
-    position: fixed !important;
-    top: auto !important; /* Overrides the 50% middle positioning */
-    bottom: 60px !important; /* Sits right above the footer */
-    left: 10px !important; 
-    right: 10px !important; 
-    transform: none !important;
-    background: rgba(15, 18, 25, 0.98) !important;
-    padding: 8px !important;
-    border-radius: 12px !important;
-    overflow-x: auto !important;
-    gap: 8px !important;
-    z-index: 1000 !important;
-    width: auto !important;
-  }
-
-  .fullscreen-palette button {
-    flex-shrink: 0 !important;
-    width: 32px !important; 
-    height: 32px !important;
-  }
-
-  /* --- Cooldown Bar Fix --- */
+ 
+  /* ── Cooldown bar ──────────────────────────── */
   .cooldown-bar {
     position: fixed !important;
-    bottom: 115px !important;
+    bottom: 102px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: auto !important;
-    min-width: 200px !important;
-    max-width: 90% !important;
-    padding: 6px 12px !important;
+    min-width: 150px !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 5px 12px !important;
     border-radius: 20px !important;
-    z-index: 1001 !important;
+    z-index: 250 !important;
+    pointer-events: none;
   }
-
-  .cooldown-bar__label {
-    font-size: 0.75rem !important;
-  }
-
+  .cooldown-bar__label { font-size: 0.7rem !important; }
+ 
+  /* ── Fullscreen button ─────────────────────── */
   .fullscreen-btn {
-    right: 12px;
-    bottom: 160px; /* Moved up slightly to not overlap the palette */
+    position: fixed !important;
+    right: 16px !important;
+    bottom: 110px !important; /* Pushed up slightly to ensure it clears the bottom mobile OS bars */
+    z-index: 2147483647 !important; /* Absolute maximum possible z-index */
+    pointer-events: auto !important; /* Force it to accept clicks */
+    display: flex !important;
+    width: 44px !important;
+    height: 44px !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+    border-radius: 50% !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
+  /* ═══════════════════════════════════════════
+     TOOL BUTTONS — floating glass overlay on canvas, bottom-left
+     Sits above the canvas, below the cooldown bar
+     ═══════════════════════════════════════════ */
+  .tool-list {
+    position: fixed !important;
+    bottom: 102px !important;   /* above palette+spawn, below cooldown bar */
+    left: 8px !important;
+    top: auto !important;
+    transform: none !important;
+    height: auto !important;
+    width: auto !important;
+    z-index: 260 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    padding: 6px !important;
+    background: rgba(10, 14, 22, 0.55) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255,255,255,0.10) !important;
+    border-radius: 14px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    grid-template-columns: unset !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+  }
+ 
+  /* Only brush + eraser visible */
+  .tool--secondary[data-tool="eyedropper"],
+  .tool--secondary[data-tool="hand"] {
+    display: none !important;
+  }
+ 
+  .tool--secondary {
+    padding: 0 !important;
+    width: 38px !important;
+    height: 38px !important;
+    min-height: unset !important;
+    font-size: 0 !important;
+    border-radius: 10px !important;
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(255,255,255,0.14) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .tool--secondary[data-tool="brush"]::after  { content: "✏️"; font-size: 1.1rem; }
+  .tool--secondary[data-tool="eraser"]::after { content: "⬜"; font-size: 1.0rem; }
+  .tool--secondary.active {
+    background: rgba(56,189,248,0.35) !important;
+    border-color: rgba(56,189,248,0.9) !important;
+    box-shadow: 0 0 0 1px rgba(56,189,248,0.4) !important;
+  }
+ 
+  /* ═══════════════════════════════════════════
+     PALETTE STRIP (h:46px, bottom:48px)
+     Full width — no longer needs to clear tool buttons
+     ═══════════════════════════════════════════ */
+  .fullscreen-palette {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 48px !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    transform: none !important;
+    height: 46px !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    align-items: center;
+    gap: 6px !important;
+    padding: 6px 12px !important;
+    border-radius: 0 !important;
+    border: none !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    background: rgba(10, 14, 22, 0.98) !important;
+    backdrop-filter: blur(10px);
+    z-index: 280 !important;
+    box-shadow: none !important;
+  }
+  .fullscreen-palette::-webkit-scrollbar { display: none; }
+ 
+  /* Smaller color swatches */
+  .fullscreen-palette button {
+    flex-shrink: 0 !important;
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 5px !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+  }
+  .fullscreen-palette button.selected {
+    box-shadow: 0 0 0 2px #38bdf8 !important;
+    transform: scale(1.14) !important;
+  }
+ 
+  /* ═══════════════════════════════════════════
+     SPAWN BAR (h:48px, bottom:0)
+     ═══════════════════════════════════════════ */
+  .footer-panel {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important; right: 0 !important;
+    height: 48px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+    align-items: center;
+    padding: 0 10px;
+    gap: 6px;
+    background: rgba(8, 12, 20, 0.98);
+    border-top: 1px solid rgba(255,255,255,0.07);
+    z-index: 290;
+  }
+  .footer-panel::-webkit-scrollbar { display: none; }
+ 
+  .spawn-container {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  /* Hide the verbose text labels */
+  .spawn-container > span:first-child,
+  .spawn-zoom-label { display: none !important; }
+ 
+  .spawn-container input[type="number"] {
+    width: 50px;
+    font-size: 0.78rem;
+    padding: 5px 6px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 7px;
+    color: var(--text);
+  }
+  #spawn-zoom { width: 56px; }
+ 
+  .spawn-container button {
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+ 
+  /* ── Variation picker — smaller on mobile ── */
+  .variation-picker {
+    font-size: 0;
+  }
+ 
+  /* Override variation picker grid/sizes to be compact on mobile */
+  .variation-picker[style] {
+    grid-template-columns: 30px 42px 30px !important;
+    grid-template-rows: 30px 42px 30px !important;
+    gap: 4px !important;
+    padding: 6px !important;
+    border-radius: 12px !important;
+  }
+ 
+  /* ── Auth card ─────────────────────────────── */
   .auth-card {
-    width: calc(100% - 20px);
-    padding: 20px;
-    border-radius: 18px;
+    width: calc(100% - 24px);
+    padding: 20px 18px;
+    border-radius: 20px;
   }
 }
+
 
 #add-color {
   display: none;

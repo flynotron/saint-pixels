@@ -347,18 +347,26 @@ function canPlacePixel() {
 }
 
 function drawGrid() {
+  const dpr = window.devicePixelRatio || 1;
+  overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
   overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+  
+  // Scale overlay context for CSS math
+  overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  
   overlayCtx.setLineDash([]);
   overlayCtx.lineWidth = 1;
   if (!gridEnabled) return;
 
   const ox = Math.round(offsetX);
   const oy = Math.round(offsetY);
+  const cssWidth = overlay.width / dpr;
+  const cssHeight = overlay.height / dpr;
 
   const startX = Math.floor(Math.max(0, -ox) / scale);
   const startY = Math.floor(Math.max(0, -oy) / scale);
-  const endX = Math.ceil(Math.min(BOARD_WIDTH, (overlay.width - ox) / scale));
-  const endY = Math.ceil(Math.min(BOARD_HEIGHT, (overlay.height - oy) / scale));
+  const endX = Math.ceil(Math.min(BOARD_WIDTH, (cssWidth - ox) / scale));
+  const endY = Math.ceil(Math.min(BOARD_HEIGHT, (cssHeight - oy) / scale));
 
   if (scale >= 3) {
     overlayCtx.save();
@@ -366,7 +374,6 @@ function drawGrid() {
     overlayCtx.lineWidth = 1;
     overlayCtx.setLineDash([2, 2]);
 
-    // FIXED: Cleaned up the pixel rounding math so lines don't disappear
     for (let gx = startX; gx <= endX; gx++) {
       const px = Math.round(gx * scale + ox);
       overlayCtx.beginPath();
@@ -382,24 +389,19 @@ function drawGrid() {
       overlayCtx.lineTo(Math.round(endX * scale + ox), py);
       overlayCtx.stroke();
     }
-
     overlayCtx.restore();
   }
 
-  // Board border
   overlayCtx.save();
   overlayCtx.strokeStyle = 'rgba(0,0,0,0.55)';
   overlayCtx.setLineDash([]);
-  const bx = ox;
-  const by = oy;
-  const bw = Math.round(BOARD_WIDTH * scale);
-  const bh = Math.round(BOARD_HEIGHT * scale);
-  overlayCtx.strokeRect(bx, by, bw, bh);
+  overlayCtx.strokeRect(ox, oy, Math.round(BOARD_WIDTH * scale), Math.round(BOARD_HEIGHT * scale));
   overlayCtx.restore();
 }
 
 function redraw() {
   clampOffsets();
+  const dpr = window.devicePixelRatio || 1;
   const displayWidth = canvas.width;
   const displayHeight = canvas.height;
   const ox = Math.round(offsetX);
@@ -407,16 +409,22 @@ function redraw() {
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  // Fill entire viewport with dark blue (outside-canvas area)
+  // Fill outer boundary
   ctx.fillStyle = '#0f172a';
   ctx.fillRect(0, 0, displayWidth, displayHeight);
 
-  // Draw white background only for the board area
+  // Scale context down by DPR so CSS logic math still works perfectly
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // Draw board background
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(ox, oy, Math.round(BOARD_WIDTH * scale), Math.round(BOARD_HEIGHT * scale));
 
+  // Must be false to keep pixel art crisp
   ctx.imageSmoothingEnabled = false;
-  ctx.setTransform(scale, 0, 0, scale, ox, oy);
+  
+  // Apply zoom scale AND DPR simultaneously directly into the transform matrix
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, ox * dpr, oy * dpr);
   ctx.drawImage(bufferCanvas, 0, 0);
 
   drawGrid();
@@ -537,8 +545,8 @@ function hexToRgba(hex) {
 }
 
 function drawCursor() {
-  if (!cursorPosition) return;
-  if (tool === 'hand') return;
+  const dpr = window.devicePixelRatio || 1;
+  if (!cursorPosition || tool === 'hand') return;
 
   const { x, y } = cursorPosition;
   const ox = Math.round(offsetX);
@@ -547,6 +555,12 @@ function drawCursor() {
   const py = Math.floor(y * scale + oy);
   const size = Math.max(1, Math.round(pixelSize * scale));
 
+  // Scale border thickness with zoom so it stays proportional on mobile pinch-zoom.
+  // Clamp between 0.5px (tiny zoom) and 2px (large zoom) so it's always visible but never chunky.
+  const borderWidth = clamp(scale * 0.15, 0.5, 2);
+  const outerOffset = borderWidth / 2;
+
+  overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   overlayCtx.save();
   overlayCtx.setLineDash([]);
 
@@ -554,14 +568,19 @@ function drawCursor() {
   overlayCtx.fillStyle = `rgba(${rgba[0]}, ${rgba[1]}, ${rgba[2]}, 0.35)`;
   overlayCtx.fillRect(px, py, size, size);
 
-  // dark shadow border for contrast on light backgrounds
+  // Dark outer border — inset by half its own width so it sits just outside the pixel
   overlayCtx.strokeStyle = 'rgba(0,0,0,0.5)';
-  overlayCtx.lineWidth = 2;
-  overlayCtx.strokeRect(px - 0.5, py - 0.5, size + 1, size + 1);
+  overlayCtx.lineWidth = borderWidth * 2;
+  overlayCtx.strokeRect(
+    px - outerOffset,
+    py - outerOffset,
+    size + borderWidth,
+    size + borderWidth
+  );
 
-  // white border on top
+  // Bright inner border — drawn flush with the pixel edge
   overlayCtx.strokeStyle = 'rgba(255,255,255,0.95)';
-  overlayCtx.lineWidth = 1;
+  overlayCtx.lineWidth = borderWidth;
   overlayCtx.strokeRect(px, py, size, size);
 
   overlayCtx.restore();
@@ -1210,13 +1229,17 @@ function endAction(event) {
 }
 
 function resizeViewport() {
+  const dpr = window.devicePixelRatio || 1;
   const rect = viewport.getBoundingClientRect();
   const w = Math.max(1, Math.floor(rect.width));
   const h = Math.max(1, Math.floor(rect.height));
-  canvas.width = w;
-  canvas.height = h;
-  overlay.width = w;
-  overlay.height = h;
+  
+  // Set the internal rendering buffers to match exact hardware pixels
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  overlay.width = w * dpr;
+  overlay.height = h * dpr;
+  
   clampOffsets();
   redraw();
 }
@@ -1532,35 +1555,56 @@ function moveColorFocus(dx, dy) {
 
 // --- FULLSCREEN LOGIC ---
 const fullscreenBtn = document.getElementById('fullscreen-btn');
-const viewportTarget = document.getElementById('viewport'); // Targeting the exact viewport wrapper container
 const fsIconEnter = document.getElementById('fs-icon-enter');
 const fsIconExit = document.getElementById('fs-icon-exit');
 
-if (fullscreenBtn && viewportTarget) {
-  fullscreenBtn.addEventListener('click', () => {
+if (fullscreenBtn) {
+  // Core fullscreen toggle function
+  const toggleFullscreen = (event) => {
+    // Crucial: Stop the canvas behind it from intercepting the tap/click
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
     fullscreenBtn.blur();
-    if (!document.fullscreenElement) {
-      viewportTarget.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable fullscreen: ${err.message}`);
-      });
-    } else {
-      document.exitFullscreen();
-    }
-  });
+    const fsTarget = document.documentElement;
 
-  document.addEventListener('fullscreenchange', () => {
-    if (document.fullscreenElement) {
-      fsIconEnter.style.display = 'none'; // FIXED: Removed duplicate .style
-      fsIconExit.style.display = 'block';
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      if (fsTarget.requestFullscreen) {
+        fsTarget.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
+      } else if (fsTarget.webkitRequestFullscreen) {
+        fsTarget.webkitRequestFullscreen(); // Safari/iOS fallback
+      }
     } else {
-      fsIconEnter.style.display = 'block';
-      fsIconExit.style.display = 'none';
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
     }
-    // Forces the pixel art engine to recalculate layout dimensions upon window morphing
-    if (typeof resizeCanvas === 'function') {
-      resizeCanvas();
+  };
+
+  // Bind to both click (desktop) and touchend (mobile) directly
+  fullscreenBtn.addEventListener('click', toggleFullscreen);
+  fullscreenBtn.addEventListener('touchend', toggleFullscreen, { passive: false });
+
+  const handleFullscreenChange = () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (fsIconEnter) fsIconEnter.style.display = 'none';
+      if (fsIconExit) fsIconExit.style.display = 'block';
+    } else {
+      if (fsIconEnter) fsIconEnter.style.display = 'block';
+      if (fsIconExit) fsIconExit.style.display = 'none';
     }
-  });
+    
+    if (typeof resizeViewport === 'function') {
+      setTimeout(resizeViewport, 150);
+    }
+  };
+
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 }
 
 // --- MOBILE TOUCH LOGIC ---
@@ -1568,6 +1612,22 @@ let lastTouchDistance = 0;
 let isTouchDragging = false;
 let lastTouchX = 0;
 let lastTouchY = 0;
+/** True when a touch started on a UI control (palette, toolbar, etc.) — suppresses tap-to-place. */
+let touchStartedOnUI = false;
+
+// Mark touches that start on any UI control outside the drawing surface so they don't place pixels.
+// Note: #fullscreen-palette and #fullscreen-btn live inside #viewport in the DOM, so we must
+// explicitly exclude them in addition to anything outside the viewport entirely.
+const _uiLayersInsideViewport = [
+  document.getElementById('fullscreen-palette'),
+  document.getElementById('fullscreen-btn'),
+];
+document.addEventListener("touchstart", (e) => {
+  const target = e.target;
+  const insideViewport = viewport.contains(target);
+  const onUILayer = _uiLayersInsideViewport.some(el => el && el.contains(target));
+  touchStartedOnUI = !insideViewport || onUILayer;
+}, { passive: true, capture: true });
 
 viewport.addEventListener("touchstart", (e) => {
   if (e.touches.length === 1) {
@@ -1640,8 +1700,16 @@ viewport.addEventListener("touchend", (e) => {
     lastTouchDistance = 0;
   }
   
-  // TAP TO PLACE: If it was 1 finger, it ended, and they didn't drag
-  if (!isTouchDragging && e.changedTouches.length === 1 && e.touches.length === 0) {
+  // FIX: If one finger is left on the screen after a pinch, 
+  // re-anchor the coordinates to that specific finger so the camera doesn't jump.
+  if (e.touches.length === 1) {
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
+    isTouchDragging = true; // Mark as dragging so it doesn't accidentally drop a pixel
+  }
+  
+  // TAP TO PLACE: If it was 1 finger, it ended, didn't drag, and started on the canvas (not a palette/UI tap)
+  if (!isTouchDragging && !touchStartedOnUI && e.changedTouches.length === 1 && e.touches.length === 0) {
      const touch = e.changedTouches[0];
      const coords = getCanvasCoords(touch.clientX, touch.clientY);
      applyToolAtCell(coords.x, coords.y);
