@@ -347,18 +347,26 @@ function canPlacePixel() {
 }
 
 function drawGrid() {
+  const dpr = window.devicePixelRatio || 1;
+  overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
   overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+  
+  // Scale overlay context for CSS math
+  overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  
   overlayCtx.setLineDash([]);
   overlayCtx.lineWidth = 1;
   if (!gridEnabled) return;
 
   const ox = Math.round(offsetX);
   const oy = Math.round(offsetY);
+  const cssWidth = overlay.width / dpr;
+  const cssHeight = overlay.height / dpr;
 
   const startX = Math.floor(Math.max(0, -ox) / scale);
   const startY = Math.floor(Math.max(0, -oy) / scale);
-  const endX = Math.ceil(Math.min(BOARD_WIDTH, (overlay.width - ox) / scale));
-  const endY = Math.ceil(Math.min(BOARD_HEIGHT, (overlay.height - oy) / scale));
+  const endX = Math.ceil(Math.min(BOARD_WIDTH, (cssWidth - ox) / scale));
+  const endY = Math.ceil(Math.min(BOARD_HEIGHT, (cssHeight - oy) / scale));
 
   if (scale >= 3) {
     overlayCtx.save();
@@ -366,7 +374,6 @@ function drawGrid() {
     overlayCtx.lineWidth = 1;
     overlayCtx.setLineDash([2, 2]);
 
-    // FIXED: Cleaned up the pixel rounding math so lines don't disappear
     for (let gx = startX; gx <= endX; gx++) {
       const px = Math.round(gx * scale + ox);
       overlayCtx.beginPath();
@@ -382,32 +389,42 @@ function drawGrid() {
       overlayCtx.lineTo(Math.round(endX * scale + ox), py);
       overlayCtx.stroke();
     }
-
     overlayCtx.restore();
   }
 
-  // Board border
   overlayCtx.save();
   overlayCtx.strokeStyle = 'rgba(0,0,0,0.55)';
   overlayCtx.setLineDash([]);
-  const bx = ox;
-  const by = oy;
-  const bw = Math.round(BOARD_WIDTH * scale);
-  const bh = Math.round(BOARD_HEIGHT * scale);
-  overlayCtx.strokeRect(bx, by, bw, bh);
+  overlayCtx.strokeRect(ox, oy, Math.round(BOARD_WIDTH * scale), Math.round(BOARD_HEIGHT * scale));
   overlayCtx.restore();
 }
 
 function redraw() {
   clampOffsets();
+  const dpr = window.devicePixelRatio || 1;
   const displayWidth = canvas.width;
   const displayHeight = canvas.height;
+  const ox = Math.round(offsetX);
+  const oy = Math.round(offsetY);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, displayWidth, displayHeight);
-  ctx.imageSmoothingEnabled = false;
 
-  ctx.setTransform(scale, 0, 0, scale, Math.round(offsetX), Math.round(offsetY));
+  // Fill outer boundary
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+  // Scale context down by DPR so CSS logic math still works perfectly
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // Draw board background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(ox, oy, Math.round(BOARD_WIDTH * scale), Math.round(BOARD_HEIGHT * scale));
+
+  // Must be false to keep pixel art crisp
+  ctx.imageSmoothingEnabled = false;
+  
+  // Apply zoom scale AND DPR simultaneously directly into the transform matrix
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, ox * dpr, oy * dpr);
   ctx.drawImage(bufferCanvas, 0, 0);
 
   drawGrid();
@@ -430,20 +447,27 @@ function clamp(value, min, max) {
 }
 
 function clampOffsets() {
-  // Clamp against BOARD dimensions (1920×1080), not the larger buffer canvas.
   const scaledWidth = BOARD_WIDTH * scale;
   const scaledHeight = BOARD_HEIGHT * scale;
 
+  // Allow panning up to 30% of the viewport outside the canvas edges
+  // so users can see the dark-blue area around the canvas.
+  const padX = Math.round(canvas.width * 0.30);
+  const padY = Math.round(canvas.height * 0.30);
+
   if (canvas.width >= scaledWidth) {
-    offsetX = Math.round((canvas.width - scaledWidth) / 2);
+    // Canvas fits: center it, but still allow a little wiggle
+    const centered = Math.round((canvas.width - scaledWidth) / 2);
+    offsetX = clamp(offsetX, centered - padX, centered + padX);
   } else {
-    offsetX = clamp(offsetX, canvas.width - scaledWidth, 0);
+    offsetX = clamp(offsetX, canvas.width - scaledWidth - padX, padX);
   }
 
   if (canvas.height >= scaledHeight) {
-    offsetY = Math.round((canvas.height - scaledHeight) / 2);
+    const centered = Math.round((canvas.height - scaledHeight) / 2);
+    offsetY = clamp(offsetY, centered - padY, centered + padY);
   } else {
-    offsetY = clamp(offsetY, canvas.height - scaledHeight, 0);
+    offsetY = clamp(offsetY, canvas.height - scaledHeight - padY, padY);
   }
 }
 
@@ -521,8 +545,8 @@ function hexToRgba(hex) {
 }
 
 function drawCursor() {
-  if (!cursorPosition) return;
-  if (tool === 'hand') return;
+  const dpr = window.devicePixelRatio || 1;
+  if (!cursorPosition || tool === 'hand') return;
 
   const { x, y } = cursorPosition;
   const ox = Math.round(offsetX);
@@ -531,6 +555,12 @@ function drawCursor() {
   const py = Math.floor(y * scale + oy);
   const size = Math.max(1, Math.round(pixelSize * scale));
 
+  // Scale border thickness with zoom so it stays proportional on mobile pinch-zoom.
+  // Clamp between 0.5px (tiny zoom) and 2px (large zoom) so it's always visible but never chunky.
+  const borderWidth = clamp(scale * 0.15, 0.5, 2);
+  const outerOffset = borderWidth / 2;
+
+  overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   overlayCtx.save();
   overlayCtx.setLineDash([]);
 
@@ -538,14 +568,19 @@ function drawCursor() {
   overlayCtx.fillStyle = `rgba(${rgba[0]}, ${rgba[1]}, ${rgba[2]}, 0.35)`;
   overlayCtx.fillRect(px, py, size, size);
 
-  // dark shadow border for contrast on light backgrounds
+  // Dark outer border — inset by half its own width so it sits just outside the pixel
   overlayCtx.strokeStyle = 'rgba(0,0,0,0.5)';
-  overlayCtx.lineWidth = 2;
-  overlayCtx.strokeRect(px - 0.5, py - 0.5, size + 1, size + 1);
+  overlayCtx.lineWidth = borderWidth * 2;
+  overlayCtx.strokeRect(
+    px - outerOffset,
+    py - outerOffset,
+    size + borderWidth,
+    size + borderWidth
+  );
 
-  // white border on top
+  // Bright inner border — drawn flush with the pixel edge
   overlayCtx.strokeStyle = 'rgba(255,255,255,0.95)';
-  overlayCtx.lineWidth = 1;
+  overlayCtx.lineWidth = borderWidth;
   overlayCtx.strokeRect(px, py, size, size);
 
   overlayCtx.restore();
@@ -842,15 +877,16 @@ function showVariationPicker(entry, anchorEl) {
   const picker = document.createElement('div');
   picker.className = 'variation-picker';
   picker.style.position = 'fixed';
-  picker.style.zIndex = 1000;
+  picker.style.zIndex = 100000; // Boosted z-index
   picker.style.display = 'grid';
   picker.style.gridTemplateColumns = '40px 56px 40px';
   picker.style.gridTemplateRows = '40px 56px 40px';
   picker.style.gap = '6px';
   picker.style.padding = '8px';
   picker.style.borderRadius = '14px';
-  picker.style.boxShadow = '0 8px 24px rgba(0,0,0,0.45)';
-  picker.style.background = 'var(--surface)';
+  picker.style.boxShadow = '0 8px 32px rgba(0,0,0,0.8)';
+  picker.style.background = '#11171f'; // Fixed: Solid dark color to remove blurriness
+  picker.style.border = '1px solid rgba(255, 255, 255, 0.15)';
 
   const addVariantButton = (hex, onClick) => {
     const btn = document.createElement('button');
@@ -1147,19 +1183,14 @@ function handlePanStart(event) {
   isPanning = true;
   panStartX = event.clientX - offsetX;
   panStartY = event.clientY - offsetY;
-  
-  if (tool === 'hand') {
-    viewport.classList.remove('tool-hand-active');
-    viewport.classList.add('tool-hand-dragging');
-  }
+  // Always force the grabbing cursor regardless of tool
+  viewport.classList.add('tool-hand-dragging');
 }
 
 function handlePanMove(event) {
   if (!isPanning) return;
-
   const proposedX = event.clientX - panStartX;
   const proposedY = event.clientY - panStartY;
-
   const scaledWidth = BOARD_WIDTH * scale;
   const scaledHeight = BOARD_HEIGHT * scale;
 
@@ -1181,7 +1212,6 @@ function handlePanMove(event) {
   offsetY = allowedY;
   redraw();
 
-  // Reset the anchor so clamping doesn't cause a dead zone when changing directions
   if (proposedX !== allowedX) panStartX = event.clientX - allowedX;
   if (proposedY !== allowedY) panStartY = event.clientY - allowedY;
 }
@@ -1189,34 +1219,27 @@ function handlePanMove(event) {
 function handlePanEnd() {
   if (!isPanning) return;
   isPanning = false;
-  
-  if (tool === 'hand') {
-    viewport.classList.remove('tool-hand-dragging');
-    viewport.classList.add('tool-hand-active');
-  }
+  // Remove the grabbing cursor
+  viewport.classList.remove('tool-hand-dragging');
 }
 
 function endAction(event) {
   isMouseDown = false;
-  if (isPanning) {
-    isPanning = false;
-    
-    // Switch cursor look back to an open hand grab state
-    if (tool === 'hand') {
-      viewport.classList.remove('tool-hand-dragging');
-      viewport.classList.add('tool-hand-active');
-    }
-  }
+  handlePanEnd(); 
 }
 
 function resizeViewport() {
+  const dpr = window.devicePixelRatio || 1;
   const rect = viewport.getBoundingClientRect();
   const w = Math.max(1, Math.floor(rect.width));
   const h = Math.max(1, Math.floor(rect.height));
-  canvas.width = w;
-  canvas.height = h;
-  overlay.width = w;
-  overlay.height = h;
+  
+  // Set the internal rendering buffers to match exact hardware pixels
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  overlay.width = w * dpr;
+  overlay.height = h * dpr;
+  
   clampOffsets();
   redraw();
 }
@@ -1425,17 +1448,21 @@ window.addEventListener('beforeunload', () => {
   removeClientHeartbeat();
 });
 
-window.addEventListener('load', async () => {
-  await initPalette();
+window.addEventListener('load', () => {
+  // 1. Size the canvas and draw the white board instantly (fixes the blue flash)
+  resizeViewport();
   syncUI();
+
+  // 2. Fetch server data asynchronously in the background
+  initPalette();
   updateAuthState();
+  
+  // 3. Start game loops
   registerClientHeartbeat();
   setInterval(registerClientHeartbeat, CLIENT_HEARTBEAT_MS);
   replayHistory();
-  resizeViewport();
   updateCooldownLabel();
   setInterval(updateCooldownLabel, 250);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
 });
 
 (function () {
@@ -1528,66 +1555,163 @@ function moveColorFocus(dx, dy) {
 
 // --- FULLSCREEN LOGIC ---
 const fullscreenBtn = document.getElementById('fullscreen-btn');
-const viewportTarget = document.getElementById('viewport'); // Targeting the exact viewport wrapper container
 const fsIconEnter = document.getElementById('fs-icon-enter');
 const fsIconExit = document.getElementById('fs-icon-exit');
 
-if (fullscreenBtn && viewportTarget) {
-  fullscreenBtn.addEventListener('click', () => {
+if (fullscreenBtn) {
+  // Core fullscreen toggle function
+  const toggleFullscreen = (event) => {
+    // Crucial: Stop the canvas behind it from intercepting the tap/click
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
     fullscreenBtn.blur();
-    if (!document.fullscreenElement) {
-      viewportTarget.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable fullscreen: ${err.message}`);
-      });
-    } else {
-      document.exitFullscreen();
-    }
-  });
+    const fsTarget = document.documentElement;
 
-  document.addEventListener('fullscreenchange', () => {
-    if (document.fullscreenElement) {
-      fsIconEnter.style.display = 'none'; // FIXED: Removed duplicate .style
-      fsIconExit.style.display = 'block';
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      if (fsTarget.requestFullscreen) {
+        fsTarget.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
+      } else if (fsTarget.webkitRequestFullscreen) {
+        fsTarget.webkitRequestFullscreen(); // Safari/iOS fallback
+      }
     } else {
-      fsIconEnter.style.display = 'block';
-      fsIconExit.style.display = 'none';
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
     }
-    // Forces the pixel art engine to recalculate layout dimensions upon window morphing
-    if (typeof resizeCanvas === 'function') {
-      resizeCanvas();
+  };
+
+  // Bind to both click (desktop) and touchend (mobile) directly
+  fullscreenBtn.addEventListener('click', toggleFullscreen);
+  fullscreenBtn.addEventListener('touchend', toggleFullscreen, { passive: false });
+
+  const handleFullscreenChange = () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (fsIconEnter) fsIconEnter.style.display = 'none';
+      if (fsIconExit) fsIconExit.style.display = 'block';
+    } else {
+      if (fsIconEnter) fsIconEnter.style.display = 'block';
+      if (fsIconExit) fsIconExit.style.display = 'none';
     }
-  });
+    
+    if (typeof resizeViewport === 'function') {
+      setTimeout(resizeViewport, 150);
+    }
+  };
+
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 }
 
+// --- MOBILE TOUCH LOGIC ---
 let lastTouchDistance = 0;
+let isTouchDragging = false;
+let lastTouchX = 0;
+let lastTouchY = 0;
+/** True when a touch started on a UI control (palette, toolbar, etc.) — suppresses tap-to-place. */
+let touchStartedOnUI = false;
+
+// Mark touches that start on any UI control outside the drawing surface so they don't place pixels.
+// Note: #fullscreen-palette and #fullscreen-btn live inside #viewport in the DOM, so we must
+// explicitly exclude them in addition to anything outside the viewport entirely.
+const _uiLayersInsideViewport = [
+  document.getElementById('fullscreen-palette'),
+  document.getElementById('fullscreen-btn'),
+];
+document.addEventListener("touchstart", (e) => {
+  const target = e.target;
+  const insideViewport = viewport.contains(target);
+  const onUILayer = _uiLayersInsideViewport.some(el => el && el.contains(target));
+  touchStartedOnUI = !insideViewport || onUILayer;
+}, { passive: true, capture: true });
+
+viewport.addEventListener("touchstart", (e) => {
+  if (e.touches.length === 1) {
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
+    isTouchDragging = false;
+  } else if (e.touches.length === 2) {
+    e.preventDefault(); // Stop native 2-finger zoom gestures
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    lastTouchDistance = Math.hypot(dx, dy);
+  }
+}, { passive: false });
 
 viewport.addEventListener("touchmove", (e) => {
+  e.preventDefault(); // Stops pulling-to-refresh & native web scroll
 
-  if (e.touches.length === 2) {
+  if (e.touches.length === 1) {
+    const dx = e.touches[0].clientX - lastTouchX;
+    const dy = e.touches[0].clientY - lastTouchY;
+    
+    // Threshold to prevent jittering taps
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      isTouchDragging = true;
+    }
 
-    const dx =
-      e.touches[0].clientX - e.touches[1].clientX;
-
-    const dy =
-      e.touches[0].clientY - e.touches[1].clientY;
-
+    offsetX += dx;
+    offsetY += dy;
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
+    
+    clampOffsets();
+    redraw();
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
     const distance = Math.hypot(dx, dy);
 
     if (lastTouchDistance) {
-
       const delta = distance - lastTouchDistance;
+      const centerClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const centerClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
-      zoom += delta * 0.01;
+      // Zoom towards center of the pinch
+      const rect = viewport.getBoundingClientRect();
+      const mouseX = centerClientX - rect.left;
+      const mouseY = centerClientY - rect.top;
 
-      updateZoom();
+      const boardX = (mouseX - offsetX) / scale;
+      const boardY = (mouseY - offsetY) / scale;
+
+      let nextZoom = scale * (1 + delta * 0.005);
+      nextZoom = clamp(nextZoom, 0.05, MAX_ZOOM_SCALE);
+      scale = nextZoom;
+
+      offsetX = mouseX - boardX * scale;
+      offsetY = mouseY - boardY * scale;
+
+      clampOffsets();
+      zoomInput.value = Math.round(scale * 100);
+      if (zoomLevelLabel) zoomLevelLabel.textContent = `${Math.round(scale * 100)}%`;
+      redraw();
     }
-
     lastTouchDistance = distance;
-
   }
-
 }, { passive: false });
 
-viewport.addEventListener("touchend", () => {
-  lastTouchDistance = 0;
+viewport.addEventListener("touchend", (e) => {
+  if (e.touches.length < 2) {
+    lastTouchDistance = 0;
+  }
+  
+  // FIX: If one finger is left on the screen after a pinch, 
+  // re-anchor the coordinates to that specific finger so the camera doesn't jump.
+  if (e.touches.length === 1) {
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
+    isTouchDragging = true; // Mark as dragging so it doesn't accidentally drop a pixel
+  }
+  
+  // TAP TO PLACE: If it was 1 finger, it ended, didn't drag, and started on the canvas (not a palette/UI tap)
+  if (!isTouchDragging && !touchStartedOnUI && e.changedTouches.length === 1 && e.touches.length === 0) {
+     const touch = e.changedTouches[0];
+     const coords = getCanvasCoords(touch.clientX, touch.clientY);
+     applyToolAtCell(coords.x, coords.y);
+  }
 });
