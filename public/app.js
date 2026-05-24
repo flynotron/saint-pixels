@@ -30,6 +30,8 @@ const coordLabel = document.getElementById('coord');
 const authOverlay = document.getElementById('authOverlay');
 const authUsername = document.getElementById('authUsername');
 const authPassword = document.getElementById('authPassword');
+const authEmail = document.getElementById('authEmail');
+const authEmailLabel = document.getElementById('authEmailLabel');
 const authLoginButton = document.getElementById('authLogin');
 const authRegisterButton = document.getElementById('authRegister');
 const authMessage = document.getElementById('authMessage');
@@ -205,7 +207,7 @@ async function updateAuthState() {
   const token = getStoredToken();
   if (!token) {
     currentUser = null;
-    dispatchStateChange({ currentUser: null });
+    dispatchStateChange({ currentUser: null, emailVerified: false });
     document.body.classList.add('auth-open');
     authUsername.focus();
     return;
@@ -219,7 +221,7 @@ async function updateAuthState() {
     if (!response.ok) {
       clearToken();
       currentUser = null;
-      dispatchStateChange({ currentUser: null });
+      dispatchStateChange({ currentUser: null, emailVerified: false });
       document.body.classList.add('auth-open');
       authUsername.focus();
       return;
@@ -227,13 +229,13 @@ async function updateAuthState() {
 
     const data = await response.json();
     currentUser = data.username;
-    dispatchStateChange({ currentUser: data.username });
+    dispatchStateChange({ currentUser: data.username, emailVerified: !!data.emailVerified });
     document.body.classList.remove('auth-open');
     authMessage.textContent = '';
     updateCooldownLabel();
   } catch (error) {
     currentUser = null;
-    dispatchStateChange({ currentUser: null });
+    dispatchStateChange({ currentUser: null, emailVerified: false });
     document.body.classList.add('auth-open');
     authUsername.focus();
   }
@@ -244,11 +246,11 @@ function showAuthMessage(message, isError = true) {
   authMessage.style.color = isError ? '#fca5a5' : '#86efac';
 }
 
-function setCurrentUser(username) {
+function setCurrentUser(username, emailVerified = false) {
   currentUser = username;
-  dispatchStateChange({ currentUser: username });
+  dispatchStateChange({ currentUser: username, emailVerified: !!emailVerified });
   document.body.classList.remove('auth-open');
-  showAuthMessage(`Logged in as ${username}`, false);
+  showAuthMessage('');
   updateCooldownLabel();
 }
 
@@ -277,21 +279,28 @@ async function handleLogin(event) {
     return;
   }
 
+  const captchaToken = getCaptchaToken();
+  if (!captchaToken) {
+    showAuthMessage('Please complete the captcha.');
+    return;
+  }
+
   try {
     const response = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password, captchaToken })
     });
 
     const data = await response.json();
     if (!response.ok) {
+      resetCaptcha();
       showAuthMessage(data.error || 'Login failed.');
       return;
     }
 
     saveToken(data.token);
-    setCurrentUser(data.username);
+    setCurrentUser(data.username, data.emailVerified);
   } catch (error) {
     showAuthMessage('Unable to reach server.');
   }
@@ -301,8 +310,20 @@ async function handleRegister(event) {
   if (event) event.preventDefault();
   const username = authUsername.value.trim();
   const password = authPassword.value;
+  const email = authEmail ? authEmail.value.trim() : '';
+
   if (!username || !password) {
     showAuthMessage('Enter username and password.');
+    return;
+  }
+  if (!email) {
+    showAuthMessage('Enter your email address.');
+    return;
+  }
+
+  const captchaToken = getCaptchaToken();
+  if (!captchaToken) {
+    showAuthMessage('Please complete the captcha.');
     return;
   }
 
@@ -310,11 +331,12 @@ async function handleRegister(event) {
     const response = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password, email, captchaToken })
     });
 
     const data = await response.json();
     if (!response.ok) {
+      resetCaptcha();
       showAuthMessage(data.error || 'Registration failed.');
       return;
     }
@@ -323,7 +345,8 @@ async function handleRegister(event) {
     saveToken(data.token);
     await updateAuthState();
     // Fallback: ensure UI shows the new username
-    setCurrentUser(data.username);
+    setCurrentUser(data.username, data.emailVerified);
+    if (data.message) showAuthMessage(data.message, false);
   } catch (error) {
     showAuthMessage('Unable to reach server.');
   }
@@ -1545,14 +1568,126 @@ toolButtons.forEach(button => {
   button.addEventListener('click', () => setTool(button.dataset.tool));
 });
 
-authLoginButton.addEventListener('click', event => {
-  event.preventDefault();
-  handleLogin();
-});
-authRegisterButton.addEventListener('click', event => {
-  event.preventDefault();
-  handleRegister();
-});
+// ─── Captcha helpers ────────────────────────────────────────────────────────
+function getCaptchaToken() {
+  if (typeof hcaptcha !== 'undefined') {
+    return hcaptcha.getResponse();
+  }
+  // hCaptcha not loaded (e.g. dev without sitekey) — return a placeholder
+  return 'dev-bypass';
+}
+
+function resetCaptcha() {
+  if (typeof hcaptcha !== 'undefined') {
+    hcaptcha.reset();
+  }
+}
+
+// ─── Auth mode tabs ──────────────────────────────────────────────────────────
+// Tracks whether the panel is in 'login' or 'register' mode.
+// The email field and submit button label change accordingly.
+let authMode = 'login'; // 'login' | 'register'
+
+const authTabLogin    = document.getElementById('authTabLogin');
+const authTabRegister = document.getElementById('authTabRegister');
+const authSubmit      = document.getElementById('authSubmit');
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const isRegister = mode === 'register';
+
+  // Show / hide email field (no flicker — driven by explicit state)
+  if (authEmailLabel) authEmailLabel.style.display = isRegister ? '' : 'none';
+
+  // Update submit button label
+  if (authSubmit) authSubmit.textContent = isRegister ? 'Create account' : 'Login';
+
+  // Tab active styles
+  if (authTabLogin) {
+    authTabLogin.classList.toggle('bg-white/10',      !isRegister);
+    authTabLogin.classList.toggle('border-white/20',  !isRegister);
+    authTabLogin.classList.toggle('text-white',       !isRegister);
+    authTabLogin.classList.toggle('text-slate-400',    isRegister);
+    authTabLogin.classList.toggle('hover:text-white',  isRegister);
+  }
+  if (authTabRegister) {
+    authTabRegister.classList.toggle('bg-white/10',     isRegister);
+    authTabRegister.classList.toggle('border-white/20', isRegister);
+    authTabRegister.classList.toggle('text-white',      isRegister);
+    authTabRegister.classList.toggle('text-slate-400',  !isRegister);
+    authTabRegister.classList.toggle('hover:text-white',!isRegister);
+  }
+}
+
+if (authTabLogin)    authTabLogin.addEventListener('click',    () => setAuthMode('login'));
+if (authTabRegister) authTabRegister.addEventListener('click', () => setAuthMode('register'));
+
+// Unified submit button triggers the right handler based on current mode
+if (authSubmit) {
+  authSubmit.addEventListener('click', event => {
+    event.preventDefault();
+    if (authMode === 'register') handleRegister(); else handleLogin();
+  });
+}
+
+// Initialise to login mode
+setAuthMode('login');
+
+// ─── Email verification banner ───────────────────────────────────────────────
+const resendVerifyBtn = document.getElementById('resendVerifyBtn');
+const resendMsg = document.getElementById('resendMsg');
+
+if (resendVerifyBtn) {
+  let resendCooling = false;
+  resendVerifyBtn.addEventListener('click', async () => {
+    if (resendCooling) return;
+    resendCooling = true;
+    resendVerifyBtn.disabled = true;
+    resendVerifyBtn.style.opacity = '0.5';
+    if (resendMsg) resendMsg.textContent = 'Sending…';
+    try {
+      const token = getStoredToken();
+      const res = await fetch('/api/resend-verification', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await res.json();
+      if (resendMsg) {
+        resendMsg.textContent = res.ok
+          ? (data.message || 'Sent! Check your inbox.')
+          : (data.error  || 'Could not send — try again.');
+      }
+    } catch {
+      if (resendMsg) resendMsg.textContent = 'Could not send — try again.';
+    }
+    // Allow retry after 10 s
+    setTimeout(() => {
+      resendCooling = false;
+      resendVerifyBtn.disabled = false;
+      resendVerifyBtn.style.opacity = '';
+    }, 10000);
+  });
+}
+
+// Handle ?verified=1 redirect from email link
+(function checkVerifiedParam() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('verified') === '1') {
+    dispatchStateChange({ emailVerified: true });
+    // Clean the URL without a reload
+    history.replaceState(null, '', window.location.pathname);
+    // Brief confirmation to the user
+    setTimeout(() => {
+      const banner = document.getElementById('verifyBanner');
+      if (banner) banner.style.display = 'none';
+    }, 100);
+  }
+})();
+
+// Enter on username or password submits the current mode's action
 
 const logoutButton = document.getElementById('logoutButton');
 if (logoutButton) {
@@ -1565,13 +1700,13 @@ if (logoutButton) {
 authPassword.addEventListener('keydown', event => {
   if (event.key === 'Enter') {
     event.preventDefault();
-    handleLogin();
+    if (authMode === 'register') handleRegister(); else handleLogin();
   }
 });
 authUsername.addEventListener('keydown', event => {
   if (event.key === 'Enter') {
     event.preventDefault();
-    handleLogin();
+    if (authMode === 'register') handleRegister(); else handleLogin();
   }
 });
 

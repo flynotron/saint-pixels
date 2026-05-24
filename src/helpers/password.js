@@ -1,16 +1,27 @@
-const crypto = require('crypto');
+const bcrypt = require('bcrypt');
+
+const SALT_ROUNDS = 12;
 
 /**
- * Compute the hash of a password for a given username
- * @param {string} password 
- * @param {string} username 
- * @returns {string}
+ * Hash a password using bcrypt.
+ * Returns a Promise<string>.
+ * @param {string} password
+ * @returns {Promise<string>}
  */
-function hashPassword(password, username) {
-  const user = typeof username === 'string' ? username : '';
+async function hashPassword(password) {
   const pwd = typeof password === 'string' ? password : '';
-  const salt = crypto.createHash('sha256').update(user).digest('hex');
-  return crypto.createHmac('sha512', salt).update(pwd).digest('hex');
+  return bcrypt.hash(pwd, SALT_ROUNDS);
 }
 
-module.exports = { hashPassword };
+/**
+ * Verify a plaintext password against a stored bcrypt hash.
+ * @param {string} password
+ * @param {string} hash
+ * @returns {Promise<boolean>}
+ */
+async function verifyPassword(password, hash) {
+  const pwd = typeof password === 'string' ? password : '';
+  return bcrypt.compare(pwd, hash);
+}
+
+module.exports = { hashPassword, verifyPassword };
