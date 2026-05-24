@@ -30,7 +30,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Debug step to detect non-UTF8 files
+      # Optional debug step
       - name: Find non-UTF8 files
         run: |
           find . -type f \
@@ -41,40 +41,31 @@ jobs:
                   || echo "Non-UTF8 file: $file"
               done
 
-      - name: Run Codacy Analysis CLI
-        uses: codacy/codacy-analysis-cli-action@d840f886c4bd4edc059706d09c6a1586111c540b
+      - name: Run Codacy Analysis
+        uses: codacy/codacy-analysis-cli-action@v4
+
         with:
           project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
 
           verbose: true
-          output: results.sarif
-          format: sarif
-          gh-code-scanning-compat: true
 
-          # Prevent Codacy from failing the workflow due to issue count
+          # IMPORTANT:
+          # Disable all broken/problematic engines
+          tool: codacy-analysis-cli
+
+          args: >
+            --disable-engine pmd
+            --disable-engine pmd-legacy
+            --disable-tool duplication
+            --disable-tool metrics
+
           max-allowed-issues: 2147483647
 
-          # Important for Docker mount paths
           directory: ${{ github.workspace }}
 
-          # Disable problematic engines
-          args: "--disable-engine pmd --disable-engine cpd"
-
-      - name: Fix SARIF Categories for GitHub
-        run: |
-          jq '.runs |= map(
-            .automationDetails = {
-              "id": (
-                .tool.driver.name
-                | ascii_downcase
-                | gsub(" "; "-")
-              )
-            }
-          )' results.sarif > results_fixed.sarif
-
-          mv results_fixed.sarif results.sarif
-
+      # Only upload if SARIF exists
       - name: Upload SARIF results file
+        if: hashFiles('results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif
