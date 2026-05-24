@@ -206,6 +206,7 @@ async function updateAuthState() {
   if (!token) {
     currentUser = null;
     dispatchStateChange({ currentUser: null });
+    document.body.classList.add('auth-open');
     authUsername.focus();
     return;
   }
@@ -219,6 +220,7 @@ async function updateAuthState() {
       clearToken();
       currentUser = null;
       dispatchStateChange({ currentUser: null });
+      document.body.classList.add('auth-open');
       authUsername.focus();
       return;
     }
@@ -748,11 +750,20 @@ function applyToolAtCell(x, y) {
 
   if (tool === 'eyedropper') {
     const pixel = bufferCtx.getImageData(x, y, 1, 1).data;
-    if (pixel[3] === 0) {
-      setColor('#000000');
-    } else {
-      setColor(rgbToHex(pixel[0], pixel[1], pixel[2]));
+    const picked = pixel[3] === 0 ? '#000000' : rgbToHex(pixel[0], pixel[1], pixel[2]);
+    const norm = normalizeHexColor(picked);
+    const alreadyIn = paletteColors.some(e => normalizeHexColor(e.color) === norm);
+    if (!alreadyIn) {
+      // Replace the currently selected color in-place
+      const currentIdx = paletteColors.findIndex(p => normalizeHexColor(p.color) === normalizeHexColor(color));
+      if (currentIdx !== -1) {
+        paletteColors[currentIdx] = asPaletteEntry({ id: paletteColors[currentIdx].id, label: norm, color: norm });
+      } else {
+        paletteColors.push(asPaletteEntry({ id: null, label: norm, color: norm }));
+      }
+      renderPalette();
     }
+    setColor(norm);
     redraw();
     return;
   }
@@ -963,17 +974,21 @@ function showVariationPicker(button, baseColor) {
     function applyHex(e) {
       e.preventDefault();
       e.stopPropagation();
-      // Update paletteColors array with the new hex
-      const entryIdx = paletteColors.findIndex(p => normalizeHexColor(p.color) === normalizeHexColor(baseColor));
-      if (entryIdx !== -1) {
-        paletteColors[entryIdx].color = hex;
-        paletteColors[entryIdx].label = hex;
+      const normHex = normalizeHexColor(hex);
+      const alreadyIn = paletteColors.some(p => normalizeHexColor(p.color) === normHex);
+      if (!alreadyIn) {
+        // Replace the base color entry in-place so the shade sits in the same slot
+        const baseIdx = paletteColors.findIndex(p => normalizeHexColor(p.color) === normalizeHexColor(baseColor));
+        if (baseIdx !== -1) {
+          paletteColors[baseIdx] = asPaletteEntry({ id: paletteColors[baseIdx].id, label: normHex, color: normHex });
+        } else {
+          paletteColors.push(asPaletteEntry({ id: null, label: normHex, color: normHex }));
+        }
+        renderPalette();
       }
-      setColor(hex);
+      setColor(normHex);
       removeVariationPicker();
       cleanupOutside();
-      // Rebuild both palette copies so all buttons are fresh with the new color
-      renderPalette();
     }
     swatch.addEventListener('click', applyHex);
     swatch.addEventListener('touchend', applyHex, { passive: false });
@@ -1148,8 +1163,8 @@ function setColor(newColor) {
   dispatchStateChange({ currentColor: norm });
   applyColorSwatchStyles(norm);
 
-  document.querySelectorAll('.palette button, .fullscreen-palette button').forEach(b => {
-    b.classList.toggle('selected', b.dataset.color === norm);
+  document.querySelectorAll('#palette button, #fullscreen-palette button').forEach(b => {
+    b.classList.toggle('selected', normalizeHexColor(b.dataset.color) === norm);
   });
 
   // Redraw immediately so cursor preview color updates without waiting for mousemove

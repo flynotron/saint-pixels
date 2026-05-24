@@ -61,9 +61,10 @@
 }
 
 .palette button.selected {
-  box-shadow: 0 0 0 3px rgba(56,189,248,0.18);
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.9), 0 0 0 5px rgba(56,189,248,0.25);
   transform: translateY(-2px);
-  outline: 2px solid rgba(255,255,255,0.06);
+  outline: 2px solid rgba(56,189,248,0.6);
+  z-index: 1;
 }
 
 /* ── Cooldown bar state classes ────────────────────────────── */
@@ -130,13 +131,14 @@ canvas.shift-pan { cursor: grab !important; }
 }
 
 .fullscreen-palette button.selected {
-  box-shadow: 0 0 0 3px #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.9), 0 0 0 5px rgba(56,189,248,0.25);
   transform: scale(1.15);
   z-index: 2;
 }
 
 /* ── Hide tools & palette when auth overlay is open ─────────── */
 body.auth-open aside,
+body.auth-open .tool-list,
 body.auth-open .canvas-toolbar,
 body.auth-open .footer-panel {
   visibility: hidden;
@@ -465,8 +467,7 @@ header.flex { will-change: transform; }
     box-shadow: none !important;
   }
 
-  /* Only eyedropper + hand hidden on mobile; none stays visible */
-  .tool--secondary[data-tool="eyedropper"],
+  /* Only hand hidden on mobile; eyedropper + none stay visible */
   .tool--secondary[data-tool="hand"] { display: none !important; }
 
   .tool--secondary {
@@ -485,9 +486,10 @@ header.flex { will-change: transform; }
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
   }
-  .tool--secondary[data-tool="brush"]::after  { content: "✏️"; font-size: 1.1rem; }
-  .tool--secondary[data-tool="eraser"]::after { content: "⬜"; font-size: 1.0rem; }
-  .tool--secondary[data-tool="none"]::after   { content: "🚫"; font-size: 1.1rem; }
+  .tool--secondary[data-tool="brush"]::after      { content: "🖌️"; font-size: 1.1rem; }
+  .tool--secondary[data-tool="eraser"]::after     { content: "⬜"; font-size: 1.0rem; }
+  .tool--secondary[data-tool="none"]::after       { content: "🚫"; font-size: 1.1rem; }
+  .tool--secondary[data-tool="eyedropper"]::after { content: "💉"; font-size: 1.1rem; }
   .tool--secondary.active {
     background: rgba(56,189,248,0.25) !important;
     border-color: rgba(56,189,248,0.9) !important;
@@ -507,7 +509,7 @@ header.flex { will-change: transform; }
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
-    overflow-y: hidden !important;
+    overflow-y: visible !important;
     scrollbar-width: none;
     align-items: center;
     gap: 6px !important;
@@ -529,7 +531,10 @@ header.flex { will-change: transform; }
     border: 1px solid rgba(49, 49, 49, 0.12) !important;
   }
   .fullscreen-palette button.selected {
-    box-shadow: 0 0 0 2px #38bdf8, 0 0 0 4px rgba(56,189,248,0.25) !important;
+    box-shadow: 0 0 0 2px #38bdf8, 0 0 0 4px rgba(56,189,248,0.5) !important;
+    border-color: #38bdf8 !important;
+    transform: scale(1.15) !important;
+    z-index: 2 !important;
   }
 
   /* Spawn bar */
