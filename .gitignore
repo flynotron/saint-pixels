@@ -1,3 +1,35 @@
+# Dependencies
 node_modules/
+ 
+# Database
 database.sqlite
+*.sqlite
+*.db
+ 
+# ── Environment / secrets — NEVER commit these ────────────────────────────────
+.env
+.env.*
+!.env.example
+ 
+# ── Test / scratch scripts ────────────────────────────────────────────────────
+test.resend.js
+test-captcha.js
+ 
+# ── Docker / deployment ───────────────────────────────────────────────────────
 portainer-compose.yaml
+docker-compose.override.yml
+ 
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+ 
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+ 
+# ── Build artefacts ───────────────────────────────────────────────────────────
+dist/
+build/
