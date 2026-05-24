@@ -3,8 +3,6 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    # Note: Using specific files here for branches is not standard 
-    # for GitHub Actions. Ensure this matches your actual branch names.
     branches: [ "main" ] 
   schedule:
     - cron: '34 11 * * 3'
@@ -38,4 +36,3 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif
-
