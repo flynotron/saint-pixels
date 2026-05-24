@@ -31,9 +31,10 @@ jobs:
           format: sarif
           gh-code-scanning-compat: true
           max-allowed-issues: 2147483647
-          # Disables the broken PMD/CPD engines directly via the CLI action parameters
           engines: '["pmd", "cpd"]'
           disable-engine: true
+          # Forces the runner to look precisely at the true repository root
+          directory: "."
           
       - name: Upload SARIF results file
         uses: github/codeql-action/upload-sarif@v4
