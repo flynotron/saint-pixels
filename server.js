@@ -56,8 +56,6 @@ const pixelLimiter = rateLimit({
   message: { error: 'Too many pixels placed. Slow down.' },
 });
 
-initializeActions(app, db, pixelLimiter, broadcastSSE);
-
 // ─── SSE Client Registry ──────────────────────────────────────────────────────
 // Keeps a Set of active SSE response objects so we can broadcast to all viewers.
 const sseClients = new Set();
@@ -68,6 +66,8 @@ function broadcastSSE(data) {
     try { client.write(payload); } catch { sseClients.delete(client); }
   }
 }
+
+initializeActions(app, db, pixelLimiter, broadcastSSE);
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
