@@ -445,7 +445,7 @@ header.flex { will-change: transform; }
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 8px) !important;
     /* Use left:50% + translateX(-50%) for true viewport centering */
     left: auto !important;
-    right: auto !important;
+    right: 100% !important;
     transform: translateX(-50%) !important;
     width: min(300px, calc(100vw - 24px)) !important;
     min-width: unset !important;
@@ -541,7 +541,7 @@ header.flex { will-change: transform; }
     display: flex !important;
     position: fixed !important;
     bottom: calc(var(--mob-spawn-h) + env(safe-area-inset-bottom, 0px)) !important;
-    left: 0 !important;
+    left: 20px !important;
     right: 0 !important;
     top: auto !important;
     transform: none !important;
@@ -731,7 +731,7 @@ header.flex { will-change: transform; }
   .canvas-toolbar {
     position: fixed;
     top: var(--mob-topbar-h); left: 0; right: 0;
-    z-index: 299;
+    z-index: 281;
     height: var(--mob-toolbar-h);
     padding: 3px 8px;
     gap: 5px;
@@ -844,7 +844,7 @@ header.flex { will-change: transform; }
     min-height: unset !important;
     font-size: 0 !important;
     border-radius: 10px !important;
-    background: transparent !important;
+    background: none !important;
     border: 1px solid rgba(255,255,255,0.08) !important;
     display: flex !important;
     align-items: center !important;
