@@ -93,10 +93,6 @@ function connectSSE() {
         applyRemotePixel(event);
         redraw();
       }
-      // Server broadcasts the true connected-client count on every connect/disconnect
-      if (event.type === 'clients' && typeof event.count === 'number') {
-        updateLiveCount(event.count);
-      }
     } catch { /* ignore malformed events */ }
   };
 
@@ -168,6 +164,7 @@ function saveToken(token) {
 
 function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(EMAIL_VERIFIED_KEY);
 }
 
 function normalizeHexColor(value) {
@@ -257,7 +254,15 @@ async function updateAuthState() {
 
     const data = await response.json();
     currentUser = data.username;
-    dispatchStateChange({ currentUser: data.username, emailVerified: !!data.emailVerified });
+    // If the server says unverified but the user just clicked the link this session,
+    // trust localStorage — the DB may lag slightly behind the redirect.
+    const locallyVerified = localStorage.getItem(EMAIL_VERIFIED_KEY) === '1';
+    const emailVerified = !!data.emailVerified || locallyVerified;
+    if (data.emailVerified) {
+      // DB confirms verified — keep the flag in sync
+      localStorage.setItem(EMAIL_VERIFIED_KEY, '1');
+    }
+    dispatchStateChange({ currentUser: data.username, emailVerified });
     document.body.classList.remove('auth-open');
     authMessage.textContent = '';
     updateCooldownLabel();
@@ -1308,10 +1313,6 @@ function syncUI() {
   updateCooldownLabel();
 }
 
-// True once the SSE stream has delivered its first 'clients' count event.
-// While false, the localStorage heartbeat is used as a rough same-browser fallback.
-let _sseCountReceived = false;
-
 function registerClientHeartbeat() {
   const clients = safeParse(localStorage.getItem(CLIENTS_KEY), {});
   const now = Date.now();
@@ -1322,10 +1323,7 @@ function registerClientHeartbeat() {
     }
   });
   localStorage.setItem(CLIENTS_KEY, JSON.stringify(clients));
-  // Only use the local count as a placeholder until the server tells us the real number
-  if (!_sseCountReceived) {
-    updateLiveCount(Object.keys(clients).length);
-  }
+  updateLiveCount(Object.keys(clients).length);
 }
 
 function removeClientHeartbeat() {
@@ -1335,7 +1333,6 @@ function removeClientHeartbeat() {
 }
 
 function updateLiveCount(count) {
-  _sseCountReceived = true;
   dispatchStateChange({ liveCount: count });
 }
 
@@ -1711,17 +1708,17 @@ if (resendVerifyBtn) {
 }
 
 // Handle ?verified=1 redirect from email link
+// We store a flag in localStorage so the banner stays hidden even after
+// updateAuthState() re-fetches /api/me (which would otherwise overwrite the state).
+const EMAIL_VERIFIED_KEY = 'sp_email_verified';
+
 (function checkVerifiedParam() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('verified') === '1') {
+    // Persist so refreshes don't re-show the banner while the DB is being read
+    localStorage.setItem(EMAIL_VERIFIED_KEY, '1');
     dispatchStateChange({ emailVerified: true });
-    // Clean the URL without a reload
     history.replaceState(null, '', window.location.pathname);
-    // Brief confirmation to the user
-    setTimeout(() => {
-      const banner = document.getElementById('verifyBanner');
-      if (banner) banner.style.display = 'none';
-    }, 100);
   }
 })();
 
@@ -1808,10 +1805,8 @@ window.addEventListener('storage', event => {
   if (!event.key) return;
 
   if (event.key === CLIENTS_KEY) {
-    if (!_sseCountReceived) {
-      const clients = safeParse(event.newValue, {});
-      updateLiveCount(Object.keys(clients).length);
-    }
+    const clients = safeParse(event.newValue, {});
+    updateLiveCount(Object.keys(clients).length);
   }
 
   if (event.key === EVENT_KEY) {
