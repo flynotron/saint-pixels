@@ -443,8 +443,8 @@ header.flex { will-change: transform; }
   .cooldown-bar {
     position: fixed !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 8px) !important;
-    top: 60px !important;
-    left: 75% !important;
+    top: auto !important; /* FIXED: Removed top: 60px so it doesn't stretch */
+    left: 50% !important; /* FIXED: Changed from 75% to 50% for perfect centering */
     right: auto !important;
     transform: translateX(-50%) !important;
     width: min(300px, calc(100vw - 24px)) !important;
@@ -484,7 +484,7 @@ header.flex { will-change: transform; }
     position: fixed !important;
     bottom: calc(var(--mob-spawn-h) + var(--mob-palette-h) + env(safe-area-inset-bottom, 0px)) !important;
     left: 0 !important;
-    top: 0 !important;
+    top: auto !important; /* FIXED: Changed from top: 0 to top: auto so it doesn't stretch vertically */
     transform: none !important;
     height: auto !important;
     width: 54px !important;
@@ -856,7 +856,7 @@ header.flex { will-change: transform; }
     position: fixed !important;
     top: auto !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 4px) !important;
-    left: 75% !important;
+    left: 50% !important; /* FIXED: Changed from 75% to 50% for perfect centering */
     right: auto !important;
     transform: translateX(-50%) !important;
     width: min(300px, calc(100vw - 24px)) !important;
@@ -915,7 +915,6 @@ header.flex { will-change: transform; }
   }
   aside > section:first-child > h2 { display: none !important; }
 }
-
 /* ══════════════════════════════════════════════════════════════
    LEADERBOARD PANEL
    Full-height slide-in from the left edge.
