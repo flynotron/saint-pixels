@@ -135,6 +135,8 @@ let lastGridScale = null;
 let lastGridOffsetX = null;
 let lastGridOffsetY = null;
 let isPanning = false;
+let panStartX = 0;
+let panStartY = 0;
 let dragStart = null;
 let gridEnabled = true;
 let tool = 'brush';
@@ -1396,19 +1398,7 @@ function moveAction(event) {
   handleAction(event);
 }
 
-function endAction(event) {
-  isMouseDown = false;
-  
-  if (isPanning) {
-    isPanning = false;
-    
-    // Restore styling back to open grab hand if tool is still 'hand'
-    if (tool === 'hand') {
-      viewport.classList.remove('tool-hand-dragging');
-      viewport.classList.add('tool-hand-active');
-    }
-  }
-}
+
 
 function handleAction(event) {
   disarmKeyboardCursor();
@@ -1460,6 +1450,7 @@ function handlePanStart(event) {
   panStartX = event.clientX - offsetX;
   panStartY = event.clientY - offsetY;
   // Always force the grabbing cursor regardless of tool
+  viewport.classList.remove('tool-hand-active');
   viewport.classList.add('tool-hand-dragging');
 }
 
@@ -1499,13 +1490,21 @@ function handlePanMove(event) {
 function handlePanEnd() {
   if (!isPanning) return;
   isPanning = false;
-  // Remove the grabbing cursor
   viewport.classList.remove('tool-hand-dragging');
+  if (tool === 'hand') {
+    viewport.classList.add('tool-hand-active');
+  }
 }
 
 function endAction(event) {
   isMouseDown = false;
-  handlePanEnd(); 
+  if (isPanning) {
+    isPanning = false;
+    viewport.classList.remove('tool-hand-dragging');
+    if (tool === 'hand') {
+      viewport.classList.add('tool-hand-active');
+    }
+  }
 }
 
 function resizeViewport() {
@@ -1528,10 +1527,6 @@ function resizeViewport() {
 
 window.addEventListener('resize', resizeViewport);
 canvas.addEventListener('mousedown', event => {
-  if (event.shiftKey || tool === 'hand') {
-    handlePanStart(event);
-    return;
-  }
   startAction(event);
 });
 
@@ -2114,36 +2109,7 @@ viewport.addEventListener("touchmove", (e) => {
     lastTouchY = e.touches[0].clientY;
 
     clampOffsets();
-    // Skip full redraw (which redraws cursor overlay) while panning for perf;
-    // only redraw the canvas + grid layers directly.
-    if (isTouchPanning) {
-      // Lightweight pan-only redraw: skip overlay cursor
-      if (!isRedrawPending) {
-        isRedrawPending = true;
-        requestAnimationFrame(() => {
-          isRedrawPending = false;
-          clampOffsets();
-          const dpr = window.devicePixelRatio || 1;
-          const vpW = canvas.width / dpr;
-          const vpH = canvas.height / dpr;
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          ctx.clearRect(0, 0, vpW, vpH);
-          ctx.save();
-          ctx.setTransform(dpr * scale, 0, 0, dpr * scale, Math.round(offsetX * dpr), Math.round(offsetY * dpr));
-          // Draw white board background first
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
-          ctx.drawImage(bufferCanvas, 0, 0);
-          ctx.restore();
-          drawGridIfDirty();
-          // Clear overlay during pan (no cursor shown while panning)
-          overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
-          overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-        });
-      }
-    } else {
-      redraw();
-    }
+    redraw();
   } else if (e.touches.length === 2) {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;

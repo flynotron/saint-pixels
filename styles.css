@@ -443,18 +443,17 @@ header.flex { will-change: transform; }
   .cooldown-bar {
     position: fixed !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 8px) !important;
-    /* Ensure it's centered relative to the full viewport, not a transformed parent */
-    left: 0 !important;
-    right: 0 !important;
-    transform: none !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
+    /* Use left:50% + translateX(-50%) for true viewport centering */
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
     width: min(300px, calc(100vw - 24px)) !important;
     min-width: unset !important;
     max-width: calc(100vw - 24px) !important;
     padding: 5px 12px !important;
     border-radius: 20px !important;
-    z-index: 250 !important;
+    /* Must be above tool-list (z-index: 285) and palette (z-index: 280) */
+    z-index: 295 !important;
     pointer-events: none;
     /* performance */
     will-change: contents;
@@ -494,7 +493,7 @@ header.flex { will-change: transform; }
     flex-direction: column !important;
     gap: 6px !important;
     padding: 8px 6px !important;
-    background: rgb(47, 47, 48) !important;
+    background: rgba(58, 58, 59, 0.98) !important;
     backdrop-filter: none !important;
     border-top: 1px solid rgba(255,255,255,0.08) !important;
     border-left: none !important;
@@ -556,11 +555,14 @@ header.flex { will-change: transform; }
     align-items: center;
     gap: 6px !important;
     /* left padding = tool-list width (54px) + small gap so swatches clear it */
+    /* right padding ensures last swatch isn't cut off when scrolled to end */
     padding: 6px 16px 6px 62px !important;
+    /* Required for right-side padding to work in overflow scroll containers */
+    box-sizing: content-box;
     border-radius: 0 !important;
     border: none !important;
-    /* exact same colour as tool-list so they read as one bar */
-    background: rgb(47, 47, 48) !important;
+    /* exact same colour as tool-list and spawn bar so they read as one bar */
+    background: rgba(58, 58, 59, 0.98) !important;
     backdrop-filter: none !important;
     z-index: 280 !important;
     box-shadow: none !important;
@@ -672,8 +674,13 @@ header.flex { will-change: transform; }
 /* ══════════════════════════════════════════════════════════════
    LANDSCAPE MOBILE — narrow height, wide width
    Recalculate heights so nothing overflows or breaks.
+   This query fires for any device with short height in landscape
+   (phones up to ~900px wide, max height 500px).
+   The portrait @media (max-width:720px) rules may NOT fire in
+   landscape on wider phones, so we re-declare all critical layout
+   rules here to guarantee correctness.
    ══════════════════════════════════════════════════════════════ */
-@media (max-width: 920px) and (orientation: landscape) and (max-height: 500px) {
+@media (orientation: landscape) and (max-height: 500px) {
   :root {
     --mob-topbar-h: 38px;
     --mob-toolbar-h: 34px;
@@ -689,64 +696,224 @@ header.flex { will-change: transform; }
     height: 100dvh;
   }
 
+  /* App shell padding reset */
+  .app-shell {
+    padding: 0;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* Hide decorative brand items */
+  .brand-tagline,
+  .brand-contribute { display: none !important; }
+
+  /* Topbar */
   header.flex {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 300;
     height: var(--mob-topbar-h);
     min-height: unset;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    padding: 0 50px 0 max(8px, env(safe-area-inset-left));
+    border-radius: 0;
+    background: rgba(58, 58, 59, 0.98);
+    backdrop-filter: none !important;
+    box-shadow: none;
   }
+  header.flex::-webkit-scrollbar { display: none; }
+  header.flex h1 { font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
 
-  header.flex h1 {
-    font-size: 0.8rem;
-  }
-
+  /* Toolbar */
   .canvas-toolbar {
+    position: fixed;
+    top: var(--mob-topbar-h); left: 0; right: 0;
+    z-index: 299;
     height: var(--mob-toolbar-h);
     padding: 3px 8px;
     gap: 5px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    background: rgba(58, 58, 59, 0.98);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-radius: 0;
+    backdrop-filter: none !important;
   }
+  .canvas-toolbar::-webkit-scrollbar { display: none; }
+  .canvas-toolbar > * { flex-shrink: 0; white-space: nowrap; font-size: 0.75rem; }
 
+  /* Canvas section */
   section.flex-col {
+    position: fixed;
     top: var(--mob-top-total);
+    left: 0; right: 0;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px));
+    padding: 0;
+    border-radius: 0;
+    border: none;
+    overflow: hidden;
+    flex-direction: column;
+    gap: 0;
+    z-index: 1;
   }
 
+  /* Palette strip */
   .fullscreen-palette {
-    height: var(--mob-palette-h) !important;
+    display: flex !important;
+    position: fixed !important;
     bottom: calc(var(--mob-spawn-h) + env(safe-area-inset-bottom, 0px)) !important;
-    padding: 4px 12px 4px 60px !important;
+    left: 0 !important; right: 0 !important;
+    top: auto !important; transform: none !important;
+    height: var(--mob-palette-h) !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    align-items: center;
     gap: 5px !important;
+    padding: 4px 12px 4px 60px !important;
+    border-radius: 0 !important;
+    border: none !important;
+    background: rgba(58, 58, 59, 0.98) !important;
+    backdrop-filter: none !important;
+    z-index: 280 !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    box-sizing: content-box;
   }
-
+  .fullscreen-palette::-webkit-scrollbar { display: none; }
   .fullscreen-palette button {
+    flex-shrink: 0 !important;
     width: 24px !important;
     height: 24px !important;
+    border-radius: 5px !important;
   }
 
+  /* Spawn / footer bar */
   .footer-panel {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important; right: 0 !important;
     min-height: var(--mob-spawn-h) !important;
     height: calc(var(--mob-spawn-h) + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
+    flex-wrap: nowrap; align-items: center;
+    padding: 0 10px;
+    gap: 6px;
+    background: rgba(58, 58, 59, 0.98);
+    border-top: 1px solid rgba(29, 28, 28, 0.07);
+    z-index: 290;
+    backdrop-filter: none !important;
   }
+  .footer-panel::-webkit-scrollbar { display: none; }
 
+  /* Tool list */
   .tool-list {
+    position: fixed !important;
     bottom: calc(var(--mob-spawn-h) + var(--mob-palette-h) + env(safe-area-inset-bottom, 0px)) !important;
+    left: 0 !important; top: auto !important;
+    transform: none !important;
+    height: auto !important;
     width: 48px !important;
+    z-index: 285 !important;
+    display: flex !important;
+    flex-direction: column !important;
     gap: 4px !important;
     padding: 6px 4px !important;
+    background: rgba(58, 58, 59, 0.98) !important;
+    backdrop-filter: none !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    border-left: none !important;
+    border-right: 1px solid rgba(255,255,255,0.08) !important;
+    border-bottom: none !important;
+    border-radius: 0 14px 0 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 3px -3px 12px rgba(0,0,0,0.25) !important;
   }
-
   .tool--secondary {
     width: 34px !important;
     height: 34px !important;
+    padding: 0 !important;
+    min-height: unset !important;
+    font-size: 0 !important;
+    border-radius: 10px !important;
+    background: transparent !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
   }
 
+  /* Cooldown bar — centered above bottom bars */
   .cooldown-bar {
+    position: fixed !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 4px) !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: min(300px, calc(100vw - 24px)) !important;
+    min-width: unset !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 5px 12px !important;
+    border-radius: 20px !important;
+    z-index: 295 !important;
+    pointer-events: none;
   }
 
   /* Leaderboard in landscape: use updated heights */
   .lb-panel {
     top: var(--mob-top-total, 72px);
     bottom: calc(var(--mob-bottom-total, 88px) + env(safe-area-inset-bottom, 0px));
+    transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                bottom 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                top 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   }
+  .lb-panel.lb-open {
+    top: 0;
+    bottom: 0;
+    z-index: 510;
+  }
+
+  /* Color picker */
+  .color-picker {
+    position: fixed;
+    top: 6px; right: 8px;
+    z-index: 401;
+    margin: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Aside collapse */
+  aside {
+    position: fixed !important;
+    top: 0 !important; left: 0 !important;
+    width: 0 !important; height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important; margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    z-index: 399 !important;
+  }
+  aside > section { display: none !important; }
+  aside > section:first-child {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important; left: 0 !important;
+    width: 0 !important; height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important; margin: 0 !important;
+  }
+  aside > section:first-child > h2 { display: none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1160,20 +1327,29 @@ header.flex { will-change: transform; }
 
 .pm-loading { color: #475569; font-style: italic; text-align: center; padding: 16px 0; font-size: 0.85rem; }
 
-/* ── Mobile: anchor below topbar, smaller panel ─────────────── */
+/* ── Mobile: anchor below topbar, full height when open ─────── */
 @media (max-width: 720px) {
   .lb-panel {
     top: var(--mob-top-total, 88px);
-    /* stop above the palette + spawn bar + safe-area so it never covers them */
+    /* Default (closed): stop above palette so toggle tab is visible */
     bottom: calc(var(--mob-bottom-total, 106px) + env(safe-area-inset-bottom, 0px));
     --lb-width: 220px;
     --lb-toggle-w: 24px;
-    /* ensure the panel body doesn't exceed its own height */
     height: auto;
+    /* Smooth transition for both position and size */
+    transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                bottom 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                top 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* When open on mobile: expand to full screen height */
+  .lb-panel.lb-open {
+    top: 0;
+    bottom: 0;
+    z-index: 510; /* above palette, spawn bar and tool list */
   }
 
   .lb-body {
-    /* let the panel body scroll internally rather than overflow */
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
