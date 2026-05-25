@@ -519,7 +519,7 @@ header.flex { will-change: transform; }
     bottom: calc(var(--mob-spawn-h) + env(safe-area-inset-bottom, 0px)) !important;
     left: 0 !important;
     right: 0 !important;
-    top: 603.5px !important;
+    top: auto !important;
     transform: none !important;
     height: var(--mob-palette-h) !important;
     flex-direction: row !important;
@@ -529,13 +529,16 @@ header.flex { will-change: transform; }
     scrollbar-width: none;
     align-items: center;
     gap: 6px !important;
-    padding: 6px 16px 6px 16px !important;
+    /* left padding = tool-list width (54px) + small gap so swatches clear it */
+    padding: 6px 16px 6px 62px !important;
     border-radius: 0 !important;
     border: none !important;
+    /* exact same colour as tool-list so they read as one bar */
     background: rgb(47, 47, 48) !important;
     backdrop-filter: none !important;
     z-index: 280 !important;
     box-shadow: none !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
   }
   .fullscreen-palette::-webkit-scrollbar { display: none; }
 
