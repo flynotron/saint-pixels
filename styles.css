@@ -443,6 +443,7 @@ header.flex { will-change: transform; }
   .cooldown-bar {
     position: fixed !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 8px) !important;
+    top: 60px !important;
     left: 75% !important;
     right: auto !important;
     transform: translateX(-50%) !important;
@@ -483,7 +484,7 @@ header.flex { will-change: transform; }
     position: fixed !important;
     bottom: calc(var(--mob-spawn-h) + var(--mob-palette-h) + env(safe-area-inset-bottom, 0px)) !important;
     left: 0 !important;
-    top: 190px !important;
+    top: 0 !important;
     transform: none !important;
     height: auto !important;
     width: 54px !important;
@@ -853,8 +854,9 @@ header.flex { will-change: transform; }
   /* Cooldown bar — centered above bottom bars */
   .cooldown-bar {
     position: fixed !important;
+    top: 60px !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 4px) !important;
-    left: 50% !important;
+    left: 75% !important;
     right: auto !important;
     transform: translateX(-50%) !important;
     width: min(300px, calc(100vw - 24px)) !important;
