@@ -443,9 +443,8 @@ header.flex { will-change: transform; }
   .cooldown-bar {
     position: fixed !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 8px) !important;
-    /* Use left:50% + translateX(-50%) for true viewport centering */
-    left: auto !important;
-    right: 50% !important;
+    left: 25% !important;
+    right: auto !important;
     transform: translateX(-50%) !important;
     width: min(300px, calc(100vw - 24px)) !important;
     min-width: unset !important;
@@ -495,9 +494,9 @@ header.flex { will-change: transform; }
     padding: 8px 6px !important;
     background: rgba(58, 58, 59, 1) !important;
     backdrop-filter: none !important;
-    border-top: 1px solid rgba(255,255,255,1) !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
     border-left: none !important;
-    border-right: 1px solid rgba(255,255,255,1) !important;
+    border-right: 1px solid rgba(255,255,255,0.08) !important;
     border-bottom: none !important;
     border-radius: 0 14px 0 0 !important;
     align-items: center !important;
@@ -556,7 +555,7 @@ header.flex { will-change: transform; }
     gap: 6px !important;
     /* left padding = tool-list width (54px) + small gap so swatches clear it */
     /* right padding ensures last swatch isn't cut off when scrolled to end */
-    padding: 6px 16px 6px 62px !important;
+    padding: 6px 16px 6px 16px !important;
     /* Required for right-side padding to work in overflow scroll containers */
     box-sizing: content-box;
     border-radius: 0 !important;
@@ -567,7 +566,6 @@ header.flex { will-change: transform; }
     z-index: 285 !important;
     box-shadow: none !important;
     border-top: 1px solid rgba(255,255,255,0.08) !important;
-    /* prevent palette from being clipped by any ancestor overflow */
     contain: layout style !important;
   }
   .fullscreen-palette::-webkit-scrollbar { display: none; }
@@ -780,7 +778,7 @@ header.flex { will-change: transform; }
     border: none !important;
     background: rgba(58, 58, 59, 1) !important;
     backdrop-filter: none !important;
-    z-index: 280 !important;
+    z-index: 285 !important;
     border-top: 1px solid rgba(255,255,255,0.08) !important;
     box-sizing: content-box;
   }
@@ -821,7 +819,7 @@ header.flex { will-change: transform; }
     transform: none !important;
     height: auto !important;
     width: 48px !important;
-    z-index: 285 !important;
+    z-index: 280 !important;
     display: flex !important;
     flex-direction: column !important;
     gap: 4px !important;
