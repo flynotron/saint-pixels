@@ -25,10 +25,10 @@ app.use(helmet({
         "https://cdn.jsdelivr.net",
         "https://js.hcaptcha.com",
         "https://newassets.hcaptcha.com",
-        // Inline Tailwind config block in index.html
-        "'sha256-OHwQcYHvs/k+734qF3UiMVxxVdPeFShQl56cfHJ38gA='",
-        // Alpine.js injects inline scripts at runtime — required
+        // Alpine.js requires unsafe-inline + unsafe-eval (uses new Function() internally)
+        // Note: having a hash alongside unsafe-inline cancels it out per CSP spec — hash removed
         "'unsafe-inline'",
+        "'unsafe-eval'",
       ],
       styleSrc:    ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
       frameSrc:    ["https://newassets.hcaptcha.com"],
@@ -52,7 +52,8 @@ const { initializeDatabase } = require('./src/setup/database.js');
 
 app.use(express.json({ limit: '10kb' }));
 
-// Serve index.html with hCaptcha sitekey injected from env at request time
+// Serve index.html with hCaptcha sitekey injected from env at request time.
+// express.static would serve the raw file with the placeholder still in it.
 const fs = require('fs');
 const indexPath = path.join(__dirname, 'public', 'index.html');
 app.get('/', (req, res) => {
