@@ -16,6 +16,17 @@
 /** @type {Set<import('http').ServerResponse>} */
 const clients = new Set();
 
+/** @type {import('better-sqlite3').Database|null} */
+let _db = null;
+
+/**
+ * Inject the database so new SSE connections can receive existing pixel history.
+ * @param {import('better-sqlite3').Database} db
+ */
+function setDb(db) {
+  _db = db;
+}
+
 /**
  * Send a JSON-serialisable object to every connected SSE client.
  * @param {object} data
@@ -59,6 +70,22 @@ function initializeSSE(app) {
     clients.add(res);
     broadcastCount();
 
+    // Send all existing pixels so the new client can paint the canvas immediately
+    if (_db) {
+      try {
+        const pixels = _db.prepare(
+          'SELECT username, x, y, color FROM pixels ORDER BY placed_at ASC'
+        ).all();
+        if (pixels.length > 0) {
+          // Send in one batch payload for efficiency
+          const payload = `data: ${JSON.stringify({ type: 'init', pixels })}\n\n`;
+          res.write(payload);
+        }
+      } catch (err) {
+        console.error('[sse] Failed to load initial pixels:', err);
+      }
+    }
+
     // Send a heartbeat comment every 25 s to keep the connection alive through
     // proxies / load balancers that close idle connections.
     const heartbeat = setInterval(() => {
@@ -79,4 +106,4 @@ function initializeSSE(app) {
   });
 }
 
-module.exports = { initializeSSE, broadcastSSE };
+module.exports = { initializeSSE, broadcastSSE, setDb };

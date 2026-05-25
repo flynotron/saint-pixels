@@ -58,17 +58,8 @@
 #grid    { z-index: 2; pointer-events: none; }
 #overlay { z-index: 3; pointer-events: none; will-change: contents; contain: strict; }
 
-/* ── Cooldown bar — desktop centering fix ──────────────────── */
-.cooldown-bar {
-  /* Override Tailwind's left-1/2 which is relative to the canvas panel,
-     not the viewport. Use fixed positioning so it truly centers on screen. */
-  position: fixed !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  bottom: 1.5rem !important;
-  width: min(360px, calc(100% - 32px)) !important;
-  z-index: 4;
-}
+/* ── Cooldown bar — desktop: stays absolute inside the viewport wrapper ── */
+/* No override needed: the HTML already has absolute left-1/2 -translate-x-1/2 bottom-3.5 */
 .toggle-btn.active,
 .tool.active {
   background: rgba(56,189,248,0.28) !important;

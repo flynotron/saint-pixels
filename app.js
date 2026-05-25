@@ -91,9 +91,26 @@ function connectSSE() {
   _sseSource.onmessage = (e) => {
     try {
       const event = JSON.parse(e.data);
-      if (event.type === 'pixel' && event.user !== currentUser) {
-        applyRemotePixel(event);
-        redraw();
+      if (event.type === 'init') {
+        // Server sent the full canvas history — paint all pixels on connect
+        if (Array.isArray(event.pixels)) {
+          event.pixels.forEach(p => {
+            if (typeof p.x === 'number' && typeof p.y === 'number' && typeof p.color === 'string') {
+              paintPixel(p.x, p.y, 1, 'brush', p.color.startsWith('#') ? p.color : '#' + p.color);
+            }
+          });
+          redraw();
+        }
+      } else if (event.type === 'pixel') {
+        if (event.user !== currentUser) {
+          applyRemotePixel(event);
+          redraw();
+        }
+        // Notify leaderboard of any pixel placed (own or other players)
+        window.dispatchEvent(new CustomEvent('sp-pixel-placed'));
+      } else if (event.type === 'clients') {
+        // Update live player count from server SSE (authoritative count)
+        dispatchStateChange({ liveCount: event.count });
       }
     } catch { /* ignore malformed events */ }
   };
@@ -2394,11 +2411,10 @@ viewport.addEventListener("touchend", (e) => {
     }
   }
 
-  // Auto-refresh every 10 s (only when open) — acts as a catch-all for
-  // players on other machines whose pixel events don't reach this tab via localStorage
+  // Auto-refresh every 10 s when open
   setInterval(() => { if (isOpen) fetchLeaderboard(); }, 10_000);
 
-  // Instant refresh whenever any pixel is placed (own tab or other tab on same machine)
+  // Instant refresh whenever any pixel is placed — own tab, other tab, or other player via SSE
   window.addEventListener('sp-pixel-placed', () => {
     if (isOpen) fetchLeaderboard();
   });

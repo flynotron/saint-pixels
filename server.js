@@ -49,7 +49,7 @@ const { requireCaptcha } = require('./src/helpers/captcha.js');
 const { sendVerificationEmail } = require('./src/helpers/mailer.js');
 const { initializeActions } = require('./src/setup/actions.js');
 const { initializeDatabase } = require('./src/setup/database.js');
-const { initializeSSE, broadcastSSE } = require('./src/setup/sse.js');
+const { initializeSSE, broadcastSSE, setDb: setSseDb } = require('./src/setup/sse.js');
 
 app.use(express.json({ limit: '10kb' }));
 
@@ -75,6 +75,7 @@ initializeDatabase(db);
 // Wire the DB into helpers that need it
 setSessionDb(db);
 setCooldownDb(db);
+setSseDb(db);
 
 // ─── Rate limiters ────────────────────────────────────────────────────────────
 // NOTE: must be registered BEFORE initializeActions so /api/pixel is covered.
