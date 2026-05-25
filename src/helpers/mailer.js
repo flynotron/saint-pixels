@@ -1,69 +1,28 @@
 /**
- * Email helper — sends transactional emails via SMTP (nodemailer).
- * Configure SMTP credentials in .env (see .env.example).
+ * Email helper — sends transactional emails via Resend HTTP API.
+ * Uses fetch (Node 18+) over HTTPS port 443, so it works on Railway.
  *
  * Required env vars:
- *   SMTP_HOST     e.g. smtp.gmail.com / smtp.mailgun.org
- *   SMTP_USER     SMTP login username (usually your email address)
- *   SMTP_PASS     SMTP password or app-password
- *
- * Optional env vars:
- *   SMTP_PORT     defaults to 587
- *   SMTP_SECURE   'true' forces TLS (port 465 style); 'false' uses STARTTLS.
- *                 When omitted the port decides: 465 → true, anything else → false.
- *   EMAIL_FROM    e.g. "Saint-Pixels <no-reply@yourdomain.com>"
- *   APP_BASE_URL  e.g. https://yourdomain.com  (used in verification links)
+ *   RESEND_API_KEY   your Resend API key (re_xxxxxxxxx)
+ *   EMAIL_FROM       e.g. "Saint-Pixels <no-reply@yourdomain.com>"
+ *   APP_BASE_URL     e.g. https://yourdomain.com
  */
 
-const nodemailer = require('nodemailer');
+const RESEND_API_URL = 'https://api.resend.com/emails';
 
 /**
- * Build a fresh transporter from the current env vars.
- * Never caches null — always retries so a mis-ordered env load doesn't
- * permanently break mail for the process lifetime.
- *
- * @returns {import('nodemailer').Transporter | null}
- */
-function getTransporter() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } = process.env;
-
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    return null;
-  }
-
-  const port   = parseInt(SMTP_PORT || '587', 10);
-  // SMTP_SECURE=true → implicit TLS (port 465).
-  // SMTP_SECURE=false → STARTTLS (port 587 / 2587).
-  // Unset → infer from port number.
-  const secure = SMTP_SECURE !== undefined
-    ? SMTP_SECURE === 'true'
-    : port === 465;
-
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port,
-    secure,
-    // requireTLS ensures STARTTLS is negotiated on port 587 even if the
-    // server advertises it as optional — prevents accidental plaintext fallback.
-    requireTLS: !secure,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
-}
-
-/**
- * Send an email.
- * Throws on SMTP error so callers can surface the failure to the user.
- * Falls back to console.log if SMTP is not configured (local dev).
+ * Send an email via Resend HTTP API.
+ * Throws on failure so callers can surface the error.
  *
  * @param {{ to: string, subject: string, html: string, text?: string }} opts
  */
 async function sendMail({ to, subject, html, text }) {
-  const from        = process.env.EMAIL_FROM || 'Saint-Pixels <no-reply@example.com>';
-  const transporter = getTransporter();
+  const apiKey = process.env.RESEND_API_KEY;
+  const from   = process.env.EMAIL_FROM || 'Saint-Pixels <no-reply@example.com>';
 
-  if (!transporter) {
+  if (!apiKey) {
     // Dev fallback — print to terminal
-    console.warn('[mailer] SMTP not configured — email NOT sent, printing to console.');
+    console.warn('[mailer] RESEND_API_KEY not set — email NOT sent, printing to console.');
     console.log(`\n[mailer] ─── EMAIL (dev mode) ────────────────────`);
     console.log(`  From:    ${from}`);
     console.log(`  To:      ${to}`);
@@ -73,13 +32,24 @@ async function sendMail({ to, subject, html, text }) {
     return;
   }
 
-  try {
-    const info = await transporter.sendMail({ from, to, subject, html, text });
-    console.log(`[mailer] Sent "${subject}" → ${to}  (messageId: ${info.messageId})`);
-  } catch (err) {
+  const res = await fetch(RESEND_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type':  'application/json',
+    },
+    body: JSON.stringify({ from, to, subject, html, text }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    const err = new Error(`Resend API error ${res.status}: ${body}`);
     console.error(`[mailer] Failed to send "${subject}" → ${to}:`, err.message);
-    throw err; // Rethrow so the calling route can return a 500/error to the client
+    throw err;
   }
+
+  const data = await res.json();
+  console.log(`[mailer] Sent "${subject}" → ${to}  (id: ${data.id})`);
 }
 
 /**
@@ -87,7 +57,7 @@ async function sendMail({ to, subject, html, text }) {
  *
  * @param {string} email
  * @param {string} username
- * @param {string} token  - The verification token stored in the DB
+ * @param {string} token
  */
 async function sendVerificationEmail(email, username, token) {
   const base = (process.env.APP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
