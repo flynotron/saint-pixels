@@ -443,7 +443,7 @@ header.flex { will-change: transform; }
   .cooldown-bar {
     position: fixed !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 8px) !important;
-    left: 25% !important;
+    left: 75% !important;
     right: auto !important;
     transform: translateX(-50%) !important;
     width: min(300px, calc(100vw - 24px)) !important;
@@ -483,7 +483,7 @@ header.flex { will-change: transform; }
     position: fixed !important;
     bottom: calc(var(--mob-spawn-h) + var(--mob-palette-h) + env(safe-area-inset-bottom, 0px)) !important;
     left: 0 !important;
-    top: auto !important;
+    top: 190px !important;
     transform: none !important;
     height: auto !important;
     width: 54px !important;
