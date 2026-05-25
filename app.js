@@ -84,7 +84,9 @@ let _sseSource = null;
 
 function connectSSE() {
   if (_sseSource) { _sseSource.close(); }
-  _sseSource = new EventSource('/api/stream');
+  const token = getStoredToken();
+  const url = token ? `/api/stream?token=${encodeURIComponent(token)}` : '/api/stream';
+  _sseSource = new EventSource(url);
 
   _sseSource.onmessage = (e) => {
     try {
@@ -2406,6 +2408,165 @@ viewport.addEventListener("touchend", (e) => {
     }, delay);
   }
   scheduleReset();
+})();
+
+// ── Password visibility toggle (auth form) ─────────────────────────────────
+const togglePasswordBtn = document.getElementById('togglePassword');
+const eyeIcon           = document.getElementById('eyeIcon');
+if (togglePasswordBtn && authPassword && eyeIcon) {
+  togglePasswordBtn.addEventListener('click', () => {
+    const isHidden = authPassword.type === 'password';
+    authPassword.type = isHidden ? 'text' : 'password';
+    eyeIcon.src = isHidden ? '/closed-eye.svg' : '/open-eye.svg';
+  });
+}
+
+// ── Forgot / Reset password flow ───────────────────────────────────────────
+const resetOverlay     = document.getElementById('resetPasswordOverlay');
+const resetModalClose  = document.getElementById('resetModalClose');
+const resetStep1       = document.getElementById('resetStep1');
+const resetStep2       = document.getElementById('resetStep2');
+const resetEmailInput  = document.getElementById('resetEmail');
+const resetNewPassword = document.getElementById('resetNewPassword');
+const resetSendBtn     = document.getElementById('resetSendBtn');
+const resetConfirmBtn  = document.getElementById('resetConfirmBtn');
+const resetMessage     = document.getElementById('resetMessage');
+const forgotPasswordBtn = document.getElementById('forgotPasswordBtn');
+const forgotPasswordRow = document.getElementById('forgotPasswordRow');
+
+// Toggle password eye on reset modal
+const toggleResetPasswordBtn = document.getElementById('toggleResetPassword');
+const resetEyeIcon           = document.getElementById('resetEyeIcon');
+if (toggleResetPasswordBtn && resetNewPassword && resetEyeIcon) {
+  toggleResetPasswordBtn.addEventListener('click', () => {
+    const isHidden = resetNewPassword.type === 'password';
+    resetNewPassword.type = isHidden ? 'text' : 'password';
+    resetEyeIcon.src = isHidden ? '/closed-eye.svg' : '/open-eye.svg';
+  });
+}
+
+function showResetMessage(msg, isError = true) {
+  if (!resetMessage) return;
+  resetMessage.textContent = msg;
+  resetMessage.style.color = isError ? '#fca5a5' : '#86efac';
+}
+
+function openResetModal(showStep2 = false, token = '') {
+  if (!resetOverlay) return;
+  resetOverlay.style.display = 'grid';
+  showResetMessage('');
+  if (showStep2) {
+    if (resetStep1) resetStep1.style.display = 'none';
+    if (resetStep2) resetStep2.style.display = '';
+    resetOverlay._resetToken = token;
+  } else {
+    if (resetStep1) resetStep1.style.display = '';
+    if (resetStep2) resetStep2.style.display = 'none';
+    resetOverlay._resetToken = '';
+    if (resetEmailInput) resetEmailInput.value = '';
+    if (resetNewPassword) resetNewPassword.value = '';
+  }
+}
+
+function closeResetModal() {
+  if (resetOverlay) resetOverlay.style.display = 'none';
+}
+
+if (forgotPasswordBtn) {
+  forgotPasswordBtn.addEventListener('click', () => openResetModal(false));
+}
+if (resetModalClose) {
+  resetModalClose.addEventListener('click', closeResetModal);
+}
+if (resetOverlay) {
+  resetOverlay.addEventListener('click', (e) => {
+    if (e.target === resetOverlay) closeResetModal();
+  });
+}
+
+// Hide "Forgot password?" in register mode
+const origSetAuthMode = typeof setAuthMode === 'function' ? setAuthMode : null;
+// Patch via MutationObserver since setAuthMode is defined in the same closure
+if (forgotPasswordRow) {
+  const authTabLoginEl    = document.getElementById('authTabLogin');
+  const authTabRegisterEl = document.getElementById('authTabRegister');
+  function syncForgotRow() {
+    const isRegister = authTabRegisterEl &&
+      authTabRegisterEl.classList.contains('bg-white/10');
+    forgotPasswordRow.style.display = isRegister ? 'none' : '';
+  }
+  if (authTabLoginEl)    authTabLoginEl.addEventListener('click',    syncForgotRow);
+  if (authTabRegisterEl) authTabRegisterEl.addEventListener('click', syncForgotRow);
+}
+
+// Send reset email
+if (resetSendBtn) {
+  resetSendBtn.addEventListener('click', async () => {
+    const email = resetEmailInput ? resetEmailInput.value.trim() : '';
+    if (!email) { showResetMessage('Enter your email address.'); return; }
+    resetSendBtn.disabled = true;
+    resetSendBtn.textContent = 'Sending…';
+    try {
+      const res = await fetch('/api/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      // Always show success to avoid leaking whether an email exists
+      showResetMessage('If that email is registered, a reset link has been sent. Check your inbox (and spam folder).', false);
+      resetSendBtn.textContent = 'Sent!';
+    } catch {
+      showResetMessage('Unable to reach server. Try again.');
+      resetSendBtn.disabled = false;
+      resetSendBtn.textContent = 'Send reset link';
+    }
+  });
+}
+
+// Confirm new password
+if (resetConfirmBtn) {
+  resetConfirmBtn.addEventListener('click', async () => {
+    const password = resetNewPassword ? resetNewPassword.value : '';
+    const token = resetOverlay ? resetOverlay._resetToken : '';
+    if (!password || password.length < 8) {
+      showResetMessage('Password must be at least 8 characters.');
+      return;
+    }
+    if (!token) { showResetMessage('Missing reset token.'); return; }
+    resetConfirmBtn.disabled = true;
+    resetConfirmBtn.textContent = 'Saving…';
+    try {
+      const res = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showResetMessage(data.error || 'Reset failed.');
+        resetConfirmBtn.disabled = false;
+        resetConfirmBtn.textContent = 'Set new password';
+        return;
+      }
+      showResetMessage('Password updated! You can now log in.', false);
+      resetConfirmBtn.textContent = 'Done ✓';
+      // Remove the token from the URL so a reload doesn't re-open the modal
+      const url = new URL(window.location.href);
+      url.searchParams.delete('resetToken');
+      window.history.replaceState({}, '', url.toString());
+    } catch {
+      showResetMessage('Unable to reach server.');
+      resetConfirmBtn.disabled = false;
+      resetConfirmBtn.textContent = 'Set new password';
+    }
+  });
+}
+
+// On load: check if URL has ?resetToken= and open step 2 automatically
+(function checkResetToken() {
+  const params = new URLSearchParams(window.location.search);
+  const rt = params.get('resetToken');
+  if (rt) openResetModal(true, rt);
 })();
 
 }); // end DOMContentLoaded

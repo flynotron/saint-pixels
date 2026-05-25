@@ -64,6 +64,17 @@ function initializeDatabase(db) {
       username TEXT PRIMARY KEY NOT NULL,
       last_pixel_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
   `);
 
   // ── Column migrations (SQLite doesn't support IF NOT EXISTS on ALTER TABLE) ──

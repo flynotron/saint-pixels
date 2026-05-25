@@ -80,7 +80,8 @@ setCooldownDb(db);
 // NOTE: must be registered BEFORE initializeActions so /api/pixel is covered.
 
 const globalLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour  max: 200,
+  windowMs: 60 * 1000,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please slow down.' },
@@ -280,6 +281,95 @@ app.post('/api/resend-verification', resendLimiter, async (req, res) => {
   } catch (err) {
     console.error('Resend verification error:', err);
     return res.status(500).json({ error: 'Could not send verification email.' });
+  }
+});
+
+// ─── Forgot / Reset password ──────────────────────────────────────────────────
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many reset requests. Please wait 15 minutes.' },
+});
+
+app.post('/api/forgot-password', forgotPasswordLimiter, async (req, res) => {
+  const { email } = req.body || {};
+  // Always respond 200 to avoid leaking whether an email exists
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.json({ message: 'If that email is registered, a reset link has been sent.' });
+  }
+
+  try {
+    const account = db.prepare('SELECT username FROM accounts WHERE email = ?').get(email.toLowerCase());
+    if (!account) return res.json({ message: 'If that email is registered, a reset link has been sent.' });
+
+    // Invalidate any existing unused tokens for this user
+    db.prepare('UPDATE password_resets SET used = 1 WHERE username = ? AND used = 0').run(account.username);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const now = Date.now();
+    db.prepare('INSERT INTO password_resets (username, token, created_at, expires_at, used) VALUES (?, ?, ?, ?, 0)')
+      .run(account.username, token, now, now + 60 * 60 * 1000); // 1 hour expiry
+
+    const base = (process.env.APP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const link = `${base}/?resetToken=${encodeURIComponent(token)}`;
+
+    const { sendMail } = require('./src/helpers/mailer.js');
+    await sendMail({
+      to: email.toLowerCase(),
+      subject: 'Reset your Saint-Pixels password',
+      text: `Hi ${account.username},\n\nClick the link below to reset your password:\n\n${link}\n\nThe link expires in 1 hour.\n\nIf you did not request a password reset, you can ignore this email.`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"/></head>
+<body style="font-family:sans-serif;background:#1e1e1f;color:#e2e8f0;padding:32px;">
+  <div style="max-width:480px;margin:0 auto;background:#2e2e2f;border-radius:16px;padding:32px;border:1px solid rgba(255,255,255,0.1);">
+    <h1 style="margin:0 0 8px;font-size:1.5rem;">Saint-Pixels</h1>
+    <p style="color:#94a3b8;margin:0 0 24px;">Password reset</p>
+    <p>Hi <strong>${account.username}</strong>,</p>
+    <p>Click the button below to set a new password. The link expires in <strong>1 hour</strong>.</p>
+    <a href="${link}" style="display:inline-block;margin:16px 0;padding:12px 28px;background:#38bdf8;color:#0f172a;font-weight:700;border-radius:10px;text-decoration:none;">Reset Password</a>
+    <p style="font-size:0.82rem;color:#64748b;margin-top:24px;">If the button doesn't work, copy this link:<br/><a href="${link}" style="color:#38bdf8;word-break:break-all;">${link}</a></p>
+    <p style="font-size:0.82rem;color:#64748b;">If you didn't request this, ignore this email.</p>
+  </div>
+</body>
+</html>`,
+    });
+
+    return res.json({ message: 'If that email is registered, a reset link has been sent.' });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    // Still return 200 — don't leak errors
+    return res.json({ message: 'If that email is registered, a reset link has been sent.' });
+  }
+});
+
+app.post('/api/reset-password', async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token || !password) return res.status(400).json({ error: 'Token and password are required.' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+
+  try {
+    const row = db.prepare(
+      'SELECT username, expires_at, used FROM password_resets WHERE token = ?'
+    ).get(token);
+
+    if (!row || row.used) return res.status(400).json({ error: 'Invalid or already-used reset link.' });
+    if (Date.now() > row.expires_at) return res.status(400).json({ error: 'This reset link has expired. Please request a new one.' });
+
+    const hashed = await hashPassword(password);
+    db.prepare('UPDATE accounts SET password = ? WHERE username = ?').run(hashed, row.username);
+    db.prepare('UPDATE password_resets SET used = 1 WHERE token = ?').run(token);
+    // Invalidate all active sessions so old password can't be reused
+    db.prepare('DELETE FROM sessions WHERE username = ?').run(row.username);
+
+    return res.json({ message: 'Password updated successfully.' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    return res.status(500).json({ error: 'Could not reset password.' });
   }
 });
 
