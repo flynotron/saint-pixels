@@ -334,9 +334,11 @@ async function handleLogin(event) {
       return;
     }
 
+    resetCaptcha();
     saveToken(data.token);
     setCurrentUser(data.username, data.emailVerified);
   } catch (error) {
+    resetCaptcha();
     showAuthMessage('Unable to reach server.');
   }
 }
@@ -1606,9 +1608,11 @@ toolButtons.forEach(button => {
 // ─── Captcha helpers ────────────────────────────────────────────────────────
 function getCaptchaToken() {
   if (typeof hcaptcha !== 'undefined') {
-    return hcaptcha.getResponse();
+    const response = hcaptcha.getResponse();
+    // getResponse() returns '' when not yet completed or already used
+    return response || null;
   }
-  // hCaptcha not loaded (e.g. dev without sitekey) — return a placeholder
+  // hCaptcha not loaded (no sitekey configured) — return a placeholder
   return 'dev-bypass';
 }
 

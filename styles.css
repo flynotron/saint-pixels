@@ -19,6 +19,27 @@
 
 [x-cloak] { display: none !important; }
 
+/* ── Auth overlay: mobile keyboard fix ──────────────────────── */
+/* On mobile, when the keyboard opens it shrinks the viewport.
+   We switch from fixed inset-0 to a scrollable overlay that
+   starts at the top and lets the user scroll to see all fields. */
+@media (max-width: 720px) {
+  #authOverlay {
+    align-items: flex-start !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding: 24px 0 env(keyboard-inset-height, 0px);
+    /* Use dvh so the overlay shrinks with the keyboard */
+    min-height: 100dvh;
+    height: auto !important;
+  }
+  #authOverlay > div {
+    margin: auto;
+    margin-top: 16px;
+    margin-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+}
+
 /* ── Canvas rendering ──────────────────────────────────────── */
 .viewport canvas {
   position: absolute;

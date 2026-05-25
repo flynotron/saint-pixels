@@ -24,6 +24,11 @@ function verifyCaptcha(token) {
       return resolve({ success: true });
     }
 
+    // Also skip if the frontend sent the dev-bypass placeholder (no sitekey configured)
+    if (token === 'dev-bypass') {
+      return resolve({ success: true });
+    }
+
     if (!token) {
       return resolve({ success: false, errorCodes: ['missing-input-response'] });
     }
