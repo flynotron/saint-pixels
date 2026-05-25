@@ -39,7 +39,7 @@ app.use(helmet({
   },
 }));
 
-const dbFile = path.join(__dirname, 'database.sqlite');
+const dbFile = process.env.DATABASE_PATH || path.join(__dirname, 'database.sqlite');
 const db = new Database(dbFile);
 
 const { setDb: setSessionDb, createSession, closeSession, getSession } = require('./src/helpers/session.js');
