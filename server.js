@@ -14,7 +14,30 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security headers (CSP, X-Frame-Options, HSTS, etc.)
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc: [
+        "'self'",
+        // CDN scripts
+        "https://cdn.tailwindcss.com",
+        "https://cdn.jsdelivr.net",
+        "https://js.hcaptcha.com",
+        "https://newassets.hcaptcha.com",
+        // Inline Tailwind config block in index.html
+        "'sha256-OHwQcYHvs/k+734qF3UiMVxxVdPeFShQl56cfHJ38gA='",
+        // Alpine.js injects inline scripts at runtime — required
+        "'unsafe-inline'",
+      ],
+      styleSrc:    ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
+      frameSrc:    ["https://newassets.hcaptcha.com"],
+      connectSrc:  ["'self'", "https://hcaptcha.com", "https://*.hcaptcha.com"],
+      imgSrc:      ["'self'", "data:"],
+      fontSrc:     ["'self'"],
+    },
+  },
+}));
 
 const dbFile = path.join(__dirname, 'database.sqlite');
 const db = new Database(dbFile);
