@@ -102,7 +102,7 @@ initializeSSE(app, db);
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 50,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many attempts. Please try again later.' },
@@ -187,13 +187,19 @@ app.post('/api/login', authLimiter, requireCaptcha, async (req, res) => {
       .get(username);
 
     // Always run verifyPassword even on no-match to prevent timing attacks
-    const dummyHash = '$2b$12$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012345678';
+    const dummyHash = '$2b$12$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV01234';
     const valid = row
       ? await verifyPassword(password, row.password)
       : await verifyPassword(password, dummyHash).then(() => false);
 
-    if (!row || !valid)
+    if (!row) {
+      console.log(`[login] Username not found: ${username}`);
       return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+    if (!valid) {
+      console.log(`[login] Wrong password for: ${username}`);
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    }
 
     const token = createSession(row.username);
     return res.json({
@@ -202,8 +208,8 @@ app.post('/api/login', authLimiter, requireCaptcha, async (req, res) => {
       emailVerified: !!row.email_verified,
     });
   } catch (err) {
-    console.error('Login error:', err);
-    return res.status(500).json({ error: 'Database error.' });
+    console.error('[login] Unexpected error:', err);
+    return res.status(500).json({ error: 'Server error. Please try again.' });
   }
 });
 
