@@ -44,6 +44,7 @@ const db = new Database(dbFile);
 
 const { setDb: setSessionDb, createSession, closeSession, getSession } = require('./src/helpers/session.js');
 const { setDb: setCooldownDb } = require('./src/helpers/cooldown.js');
+const { setDb: setAntiCheatDb } = require('./src/helpers/AntiCheat.js');
 const { hashPassword, verifyPassword } = require('./src/helpers/password.js');
 const { requireCaptcha } = require('./src/helpers/captcha.js');
 const { sendVerificationEmail } = require('./src/helpers/mailer.js');
@@ -76,6 +77,7 @@ initializeDatabase(db);
 setSessionDb(db);
 setCooldownDb(db);
 setSseDb(db);
+setAntiCheatDb(db);
 
 // ─── Rate limiters ────────────────────────────────────────────────────────────
 // NOTE: must be registered BEFORE initializeActions so /api/pixel is covered.

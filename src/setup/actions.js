@@ -1,5 +1,6 @@
 const { PlacePixel } = require('../actions/PlacePixel.js');
 const { Leaderboard } = require('../actions/Leaderboard.js');
+const { ipCooldownMiddleware } = require('../helpers/AntiCheat.js');
 
 /**
  * @param {import('express').Application} app
@@ -13,8 +14,16 @@ function initializeActions(app, db, pixelLimiter, broadcastSSE) {
   PlacePixel.setBroadcast(broadcastSSE || (() => {}));
   Leaderboard.setDb(db);
 
-  const pixelMiddleware = pixelLimiter ? [pixelLimiter, PlacePixel.execute] : [PlacePixel.execute];
-  const eraseMiddleware = pixelLimiter ? [pixelLimiter, PlacePixel.erase] : [PlacePixel.erase];
+  // ipCooldownMiddleware is applied first — before the per-request rate limiter
+  // and before the per-user cooldown check — so multi-account IP bypasses are
+  // caught at the earliest possible point.
+  const pixelMiddleware = pixelLimiter
+    ? [ipCooldownMiddleware, pixelLimiter, PlacePixel.execute]
+    : [ipCooldownMiddleware, PlacePixel.execute];
+
+  const eraseMiddleware = pixelLimiter
+    ? [ipCooldownMiddleware, pixelLimiter, PlacePixel.erase]
+    : [ipCooldownMiddleware, PlacePixel.erase];
 
   app.post('/api/pixel',              ...pixelMiddleware);
   app.post('/api/erase',              ...eraseMiddleware);

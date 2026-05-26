@@ -1,5 +1,6 @@
 const { getCooldown, resetCooldown } = require('../helpers/cooldown.js');
 const { getSession } = require('../helpers/session.js');
+const { recordIp } = require('../helpers/AntiCheat.js');
 
 // Injected by initializeActions
 let _db = null;
@@ -30,6 +31,8 @@ class PlacePixel {
     }
 
     resetCooldown(session.username);
+    // Record this placement against the IP for anti-cheat enforcement
+    recordIp(req.ip || req.socket?.remoteAddress || 'unknown', session.username);
 
     // Increment this player's pixel count for today (UTC-4 day boundary)
     if (_db) {
@@ -82,6 +85,8 @@ class PlacePixel {
     }
 
     resetCooldown(session.username);
+    // Record this erase against the IP for anti-cheat enforcement
+    recordIp(req.ip || req.socket?.remoteAddress || 'unknown', session.username);
 
     // Store erase as a pixel with sentinel color 'erase'
     // When replayed on init, this will clear the pixel correctly

@@ -1,13 +1,16 @@
-# Dependencies
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules/
  
-# Database
+# ── Database ──────────────────────────────────────────────────────────────────
 database.sqlite
 database.sqlite-shm
 database.sqlite-wal
 *.sqlite
 *.db
- 
+
+# ── Anticheat ─────────────────────────────────────────────────────────────────
+src/helpers/AntiCheat.js
+
 # ── Environment / secrets — NEVER commit these ────────────────────────────────
 .env
 .env.*
