@@ -436,7 +436,7 @@ function updateCooldownLabel() {
   cooldownFill.style.width = `${Math.max(0, Math.min(100, recharged * 100))}%`;
   if (remaining > 0) {
     cooldownBar.classList.add('cooldown-bar--cooling');
-    cooldownBarLabel.textContent = `Pixel cooldown · ${Math.ceil(remaining / 1000)}s`;
+    cooldownBarLabel.textContent = `Cooldown · ${Math.ceil(remaining / 1000)}s`;
     // Drive smooth updates via rAF while cooling
     if (!_cooldownRafId) {
       const tick = () => {
@@ -444,7 +444,7 @@ function updateCooldownLabel() {
         const pct = (1 - rem / COOLDOWN_MS) * 100;
         cooldownFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
         if (rem > 0) {
-          cooldownBarLabel.textContent = `Pixel cooldown · ${Math.ceil(rem / 1000)}s`;
+          cooldownBarLabel.textContent = `Cooldown · ${Math.ceil(rem / 1000)}s`;
           _cooldownRafId = requestAnimationFrame(tick);
         } else {
           cooldownFill.style.width = '100%';
