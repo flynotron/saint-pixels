@@ -839,7 +839,7 @@ header.flex { will-change: transform; }
   }
 
   /* FIX: Landscape Cooldown Bar — centered in canvas area right of 48px tool-list */
-  .cooldown-bar {
+ /* .cooldown-bar {
     position: fixed !important;
     top: auto !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 4px) !important;
@@ -860,7 +860,7 @@ header.flex { will-change: transform; }
   .cooldown-bar__label {
     font-size: 0.7rem !important;
     letter-spacing: 0.07em !important;
-  }
+  } */
 
   .lb-panel {
     top: var(--mob-top-total, 72px);
