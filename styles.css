@@ -448,14 +448,13 @@ header.flex { will-change: transform; }
     touch-action: none;
   }
 
-  /* ── FIX: Centered Cooldown Bar ── */
+  /* ── FIX: Centered Cooldown Bar — offset from tool-list (54px) ── */
   .cooldown-bar {
     position: fixed !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 13px) !important;
     top: auto !important;
-    /* Centering: stretch full width then let auto margins center the content */
-    left: 12px !important;
-    right: 12px !important;
+    left: calc(54px + 10px) !important;
+    right: 10px !important;
     transform: none !important;
     width: auto !important;
     max-width: 360px !important;
@@ -823,15 +822,18 @@ header.flex { will-change: transform; }
     flex-shrink: 0 !important;
   }
 
-  /* FIX: Centered Landscape Cooldown Bar */
+  /* FIX: Landscape Cooldown Bar — right of tool-list (48px), centered in remaining space */
   .cooldown-bar {
     position: fixed !important;
     top: auto !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 4px) !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    width: max-content !important;
-    max-width: calc(100vw - 24px) !important;
+    left: calc(48px + 12px) !important;
+    right: 12px !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: 360px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
     padding: 5px 12px !important;
     border-radius: 20px !important;
     z-index: 295 !important;
@@ -942,7 +944,7 @@ header.flex { will-change: transform; }
 .lb-body {
   width: var(--lb-width);
   height: 100%;
-  background: rgba(49, 49, 49, 0.98);
+  background: rgba(58, 58, 59, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-left: none;
   border-top: none;
