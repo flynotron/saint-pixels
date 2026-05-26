@@ -467,6 +467,7 @@ header.flex { will-change: transform; }
     z-index: 250 !important;
     pointer-events: none;
   }
+
   .cooldown-bar__label {
     font-size: 0.7rem !important;
     letter-spacing: 0.07em !important;
