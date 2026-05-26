@@ -12,15 +12,13 @@ let _broadcast = () => {};
  */
 function getDayUTC4() {
   const now = new Date();
-  // Shift to UTC-4 by subtracting 4 hours worth of ms
   const utc4 = new Date(now.getTime() - 4 * 60 * 60 * 1000);
-  return utc4.toISOString().slice(0, 10); // "YYYY-MM-DD"
+  return utc4.toISOString().slice(0, 10);
 }
 
 class PlacePixel {
   /**
-   * @param {*} req 
-   * @param {*} res 
+   * POST /api/pixel — place a coloured pixel
    */
   static execute(req, res) {
     const session = getSession(req);
@@ -62,9 +60,47 @@ class PlacePixel {
       }
     }
 
-    // Broadcast the pixel to all SSE-connected clients for real-time sync
-    const safeColor = typeof req.body.color === 'string' ? req.body.color.replace(/[^0-9a-fA-F#]/g, '').slice(0, 7) : '';
+    const safeColor = typeof req.body.color === 'string'
+      ? req.body.color.replace(/[^0-9a-fA-F#]/g, '').slice(0, 7)
+      : '';
     _broadcast({ type: 'pixel', x: req.body.x, y: req.body.y, color: safeColor, user: session.username });
+
+    return res.json({ success: true });
+  }
+
+  /**
+   * POST /api/erase — erase a pixel (stored as color='erase' sentinel)
+   * Uses the same cooldown as a regular pixel placement.
+   */
+  static erase(req, res) {
+    const session = getSession(req);
+    if (!session) return res.status(401).json({ error: 'Unauthorized' });
+
+    const cooldownLeft = getCooldown(session.username);
+    if (cooldownLeft > 0) {
+      return res.status(429).json({ error: 'Cooldown active. Please wait.', cooldown: cooldownLeft });
+    }
+
+    resetCooldown(session.username);
+
+    // Store erase as a pixel with sentinel color 'erase'
+    // When replayed on init, this will clear the pixel correctly
+    if (_db) {
+      try {
+        const { x, y } = req.body;
+        if (typeof x === 'number' && typeof y === 'number') {
+          _db.prepare(`
+            INSERT INTO pixels (username, x, y, color, placed_at)
+            VALUES (?, ?, ?, 'erase', ?)
+          `).run(session.username, x, y, Date.now());
+        }
+      } catch (err) {
+        console.error('Failed to store erase:', err);
+      }
+    }
+
+    // Broadcast erase event to all SSE clients
+    _broadcast({ type: 'erase', x: req.body.x, y: req.body.y, user: session.username });
 
     return res.json({ success: true });
   }

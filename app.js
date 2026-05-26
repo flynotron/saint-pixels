@@ -95,8 +95,12 @@ function connectSSE() {
         // Server sent the full canvas history — paint all pixels on connect
         if (Array.isArray(event.pixels)) {
           event.pixels.forEach(p => {
-            if (typeof p.x === 'number' && typeof p.y === 'number' && typeof p.color === 'string') {
-              paintPixel(p.x, p.y, 1, 'brush', p.color.startsWith('#') ? p.color : '#' + p.color);
+            if (typeof p.x === 'number' && typeof p.y === 'number') {
+              if (p.color === 'erase') {
+                paintPixel(p.x, p.y, 1, 'eraser', null);
+              } else if (typeof p.color === 'string') {
+                paintPixel(p.x, p.y, 1, 'brush', p.color.startsWith('#') ? p.color : '#' + p.color);
+              }
             }
           });
           redraw();
@@ -108,6 +112,11 @@ function connectSSE() {
         }
         // Notify leaderboard of any pixel placed (own or other players)
         window.dispatchEvent(new CustomEvent('sp-pixel-placed'));
+      } else if (event.type === 'erase') {
+        if (event.user !== currentUser) {
+          paintPixel(event.x, event.y, 1, 'eraser', null);
+          redraw();
+        }
       } else if (event.type === 'clients') {
         // Update live player count from server SSE (authoritative count)
         dispatchStateChange({ liveCount: event.count });
@@ -965,14 +974,18 @@ function broadcastEvent(event) {
 
     // Persist to server (leaderboard + pixel history)
     const token = getStoredToken();
-    if (token && event.tool !== 'eraser') {
-      fetch('/api/pixel', {
+    if (token) {
+      const endpoint = event.tool === 'eraser' ? '/api/erase' : '/api/pixel';
+      const payload = event.tool === 'eraser'
+        ? { x: event.x, y: event.y }
+        : { x: event.x, y: event.y, color: event.color };
+      fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ x: event.x, y: event.y, color: event.color })
+        body: JSON.stringify(payload)
       }).then(() => {
         window.dispatchEvent(new CustomEvent('sp-pixel-placed'));
       }).catch(() => { /* fire-and-forget; local paint already happened */ });

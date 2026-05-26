@@ -14,7 +14,10 @@ function initializeActions(app, db, pixelLimiter, broadcastSSE) {
   Leaderboard.setDb(db);
 
   const pixelMiddleware = pixelLimiter ? [pixelLimiter, PlacePixel.execute] : [PlacePixel.execute];
+  const eraseMiddleware = pixelLimiter ? [pixelLimiter, PlacePixel.erase] : [PlacePixel.erase];
+
   app.post('/api/pixel',              ...pixelMiddleware);
+  app.post('/api/erase',              ...eraseMiddleware);
   app.get('/api/leaderboard',         Leaderboard.execute);
   app.get('/api/profile/:username',   Leaderboard.profile);
 }

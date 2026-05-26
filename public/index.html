@@ -9,8 +9,8 @@
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <!-- hCaptcha -->
   <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
-  <script type="module" crossorigin src="/assets/index-q6TBI6dH.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CFuquHnp.css">
+  <script type="module" crossorigin src="/assets/index-DKXhUnZ0.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-P41FNHSZ.css">
 </head>
 <body
   class="h-screen overflow-hidden text-slate-100 font-sans flex items-stretch" style="background:#2e2e2f;"
@@ -168,6 +168,38 @@
       <!-- Brand -->
       <div class="flex flex-row flex-nowrap items-center gap-1.5 shrink-0 min-w-0">
         <h1 class="m-0 text-[clamp(1.4rem,2vw,2rem)] leading-none font-bold">Saint-Pixels</h1>
+        <!-- Drag handle — sits right next to the title on all screen sizes -->
+        <div class="topbar-drag-handle" id="topbar-drag-handle" title="Drag to scroll">
+          <svg width="32" height="16" viewBox="0 0 32 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events:none;display:block;">
+            <polyline points="10,3 4,8 10,13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <line x1="4" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <polyline points="22,3 28,8 22,13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <line x1="28" y1="8" x2="19" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <!-- Mobile-only: Contribute + Donate + live count (hidden on desktop via CSS) -->
+        <a
+          class="mob-contribute-btn px-2 py-1 rounded-lg border border-white/10 bg-white/5 text-slate-100 no-underline font-semibold text-xs inline-flex items-center gap-1 hover:bg-sky-400/15 hover:border-sky-400/80 transition-all"
+          href="https://github.com/flynotron/saint-pixels"
+          target="_blank"
+          rel="noopener"
+        >
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          Contribute
+        </a>
+        <a
+          class="mob-donate-btn px-2 py-1 rounded-lg border border-white/10 bg-white/5 text-slate-100 no-underline font-semibold text-xs inline-flex items-center gap-1 hover:bg-amber-400/15 hover:border-amber-400/80 transition-all"
+          href="https://buymeacoffee.com/riviereau"
+          target="_blank"
+          rel="noopener"
+        >Donate</a>
+        <span
+          class="mob-live-count inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-white/10 bg-white/5 text-xs font-semibold whitespace-nowrap"
+          title="Live players"
+        >
+          <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span x-text="liveCount"></span>
+        </span>
         <a
           class="px-2 py-1.5 rounded-xl border border-white/10 bg-white/5 text-slate-100 no-underline font-semibold text-sm inline-flex items-center hover:-translate-y-px hover:bg-sky-400/15 hover:border-sky-400/80 transition-all brand-contribute"
           href="https://github.com/flynotron/saint-pixels"
@@ -182,44 +214,6 @@
           rel="noopener"
         >Donate</a>
         <span class="text-slate-400 text-sm whitespace-nowrap brand-tagline">1920×1080 Live Canvas</span>
-      </div>
-
-      <!-- Center group: mob buttons (shown on mobile) + drag handle arrows -->
-      <div class="topbar-center-group flex flex-row flex-nowrap items-center gap-1.5 shrink-0">
-        <a
-          class="mob-contribute-btn px-2 py-1 rounded-lg border border-white/10 bg-white/5 text-slate-100 no-underline font-semibold text-xs inline-flex items-center gap-1 hover:bg-sky-400/15 hover:border-sky-400/80 transition-all"
-          href="https://github.com/flynotron/saint-pixels"
-          target="_blank"
-          rel="noopener"
-          style="display:none;"
-        >
-          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-          Contribute
-        </a>
-        <a
-          class="mob-donate-btn px-2 py-1 rounded-lg border border-white/10 bg-white/5 text-slate-100 no-underline font-semibold text-xs inline-flex items-center gap-1 hover:bg-amber-400/15 hover:border-amber-400/80 transition-all"
-          href="https://buymeacoffee.com/riviereau"
-          target="_blank"
-          rel="noopener"
-          style="display:none;"
-        >Donate</a>
-        <span
-          class="mob-live-count inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-white/10 bg-white/5 text-xs font-semibold whitespace-nowrap"
-          style="display:none;"
-          title="Live players"
-        >
-          <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-          <span x-text="liveCount"></span>
-        </span>
-        <!-- Drag handle arrows — always visible, always right of mob buttons -->
-        <div class="topbar-drag-handle" id="topbar-drag-handle" title="Drag to scroll">
-          <svg width="32" height="16" viewBox="0 0 32 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events:none;display:block;">
-            <polyline points="10,3 4,8 10,13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-            <line x1="4" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <polyline points="22,3 28,8 22,13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-            <line x1="28" y1="8" x2="19" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
       </div>
 
       <!-- Status chips -->

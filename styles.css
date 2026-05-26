@@ -204,7 +204,7 @@ body.auth-open #lb-panel {
   user-select: none;
   flex-shrink: 0;
   touch-action: none;
-  align-self: stretch;
+  align-self: center;
 }
 .topbar-drag-handle:hover { opacity: 0.88; background: rgba(255,255,255,0.07); }
 
@@ -351,32 +351,18 @@ header.flex { will-change: transform; }
   [role="group"] > div:nth-child(2) { display: none !important; }
   #logoutButton { display: none !important; }
 
-  /* Mob buttons + drag handle group: keep inline, no wrap */
-  .topbar-center-group {
-    align-self: center !important;
-    flex-wrap: nowrap !important;
-    align-items: center !important;
-    gap: 6px !important;
-  }
   /* Show the coords chip on mobile */
   .mob-coords-chip { display: inline-flex !important; }
-  /* Show mobile-only contribute + donate + live count */
-  .mob-contribute-btn { display: inline-flex !important; }
-  .mob-donate-btn { display: inline-flex !important; }
-  .mob-live-count { display: inline-flex !important; }
+  /* Show mobile-only contribute + donate + live count (hidden on desktop) */
   .mob-contribute-btn,
   .mob-donate-btn,
   .mob-live-count {
+    display: inline-flex !important;
     white-space: nowrap !important;
     flex-shrink: 0 !important;
   }
   /* Show toolbox spacer on mobile */
   .palette-toolbox-spacer { display: block !important; }
-
-  .topbar-center-group .topbar-drag-handle {
-    align-self: center !important;
-    padding: 4px 6px !important;
-  }
 
   /* Color picker — fixed circle at topbar right */
   .color-picker {
@@ -470,12 +456,12 @@ header.flex { will-change: transform; }
   /* ── Cooldown Bar: portrait — working centered version ── */
   .cooldown-bar {
     position: fixed !important;
-    bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 8px) !important;
-    left: 50% !important;
+    bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 13px) !important;
+    left: calc(50% + 27px) !important;
     transform: translateX(-50%) !important;
     width: auto !important;
     min-width: 150px !important;
-    max-width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 78px) !important;
     padding: 5px 12px !important;
     border-radius: 20px !important;
     z-index: 250 !important;
@@ -838,29 +824,7 @@ header.flex { will-change: transform; }
     flex-shrink: 0 !important;
   }
 
-  /* FIX: Landscape Cooldown Bar — centered in canvas area right of 48px tool-list */
- /* .cooldown-bar {
-    position: fixed !important;
-    top: auto !important;
-    bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 4px) !important;
-    left: calc(24px + 50vw) !important;
-    right: auto !important;
-    transform: translateX(-50%) !important;
-    width: min(280px, calc(100vw - 64px)) !important;
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 4px 12px !important;
-    border-radius: 20px !important;
-    z-index: 295 !important;
-    pointer-events: none;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-  .cooldown-bar__label {
-    font-size: 0.7rem !important;
-    letter-spacing: 0.07em !important;
-  } */
+  /* Landscape cooldown bar intentionally omitted — no override needed */
 
   .lb-panel {
     top: var(--mob-top-total, 72px);
