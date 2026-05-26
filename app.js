@@ -154,6 +154,8 @@ let lastPointerClientY = 0;
 let keyboardCursorArmored = false;
 let mouseArmorAnchorX = 0;
 let mouseArmorAnchorY = 0;
+/** Index of the palette slot most recently activated by the user — eyedropper prefers this slot on ties. */
+let lastUsedPaletteIdx = -1;
 
 function safeParse(value, fallback) {
   try {
@@ -824,7 +826,7 @@ function moveCursorFromArrow(dx, dy, event) {
 
 function applyToolAtCell(x, y) {
   if (x < 0 || y < 0 || x >= BOARD_WIDTH || y >= BOARD_HEIGHT) return;
-  if (tool === 'none') return;
+  if (tool === 'none' || tool === 'hand') return;
   updateStatus(x, y);
   cursorPosition = { x, y };
 
@@ -839,6 +841,8 @@ function applyToolAtCell(x, y) {
 
     // Search paletteColors (source of truth) directly — avoids the dual-DOM
     // problem where #palette and #fullscreen-palette are separate button sets.
+    // Prefer the most-recently-used slot when multiple slots tie on hue distance,
+    // so picking a dark blue replaces the blue you last used, not a random one.
     let bestIdx = -1;
     let bestDist = Infinity;
     paletteColors.forEach((entry, i) => {
@@ -847,22 +851,26 @@ function applyToolAtCell(x, y) {
       const [bH, bS] = hexToHsl(base);
       const dH = Math.min(Math.abs(pH - bH), 360 - Math.abs(pH - bH));
       const dist = dH + Math.abs(pS - bS) * 0.3;
-      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+      // Strictly-better distance wins outright; equal distance defers to the
+      // most-recently-used slot so the user always sees predictable behaviour.
+      const isBetter = dist < bestDist - 0.01;
+      const isTieWithRecent = Math.abs(dist - bestDist) <= 0.01 && i === lastUsedPaletteIdx;
+      if (isBetter || isTieWithRecent) { bestDist = dist; bestIdx = i; }
     });
 
     // Only update in-place when the hue is genuinely close (within 30°); otherwise
     // fall back to adding a new entry so completely novel colors still get recorded.
     const HUE_THRESHOLD = 30;
     if (bestIdx !== -1 && bestDist <= HUE_THRESHOLD) {
+      // The exact color currently stored at the best slot — used to match DOM buttons precisely.
+      const slotColor = normalizeHexColor(paletteColors[bestIdx].color);
       // Update paletteColors (source of truth) first
       paletteColors[bestIdx] = asPaletteEntry({ ...paletteColors[bestIdx], color: norm });
-      // Now sync ALL matching palette buttons in both #palette and #fullscreen-palette.
+      // Sync ONLY the buttons whose dataset.color exactly matches the slot being replaced.
+      // This prevents updating every blue-family button when picking a dark blue —
+      // which previously happened because the second hue scan caught all similar hues.
       document.querySelectorAll('#palette button, #fullscreen-palette button').forEach(btn => {
-        const btnBase = btn.dataset.baseColor ? normalizeHexColor(btn.dataset.baseColor) : normalizeHexColor(btn.dataset.color);
-        const [btnH, btnS] = hexToHsl(btnBase);
-        const dH = Math.min(Math.abs(pH - btnH), 360 - Math.abs(pH - btnH));
-        const dist = dH + Math.abs(pS - btnS) * 0.3;
-        if (dist <= HUE_THRESHOLD) {
+        if (normalizeHexColor(btn.dataset.color) === slotColor) {
           btn.style.background = norm;
           btn.dataset.color = norm;
           btn.title = norm.toUpperCase();
@@ -1308,6 +1316,11 @@ function setColor(newColor) {
   dispatchStateChange({ currentColor: norm });
   applyColorSwatchStyles(norm);
 
+  // Track which paletteColors slot was last activated so the eyedropper
+  // can prefer it over other same-hue slots when resolving ties.
+  const activatedIdx = paletteColors.findIndex(e => normalizeHexColor(e.color) === norm);
+  if (activatedIdx !== -1) lastUsedPaletteIdx = activatedIdx;
+
   document.querySelectorAll('#palette button, #fullscreen-palette button').forEach(b => {
     const btnColor = normalizeHexColor(b.dataset.color);
     b.classList.toggle('selected', btnColor === norm);
@@ -1456,35 +1469,15 @@ function handlePanStart(event) {
 
 function handlePanMove(event) {
   if (!isPanning) return;
-  const proposedX = event.clientX - panStartX;
-  const proposedY = event.clientY - panStartY;
-  const scaledWidth = BOARD_WIDTH * scale;
-  const scaledHeight = BOARD_HEIGHT * scale;
-
-  const _dpr = window.devicePixelRatio || 1;
-  const _vpW = canvas.width / _dpr;
-  const _vpH = canvas.height / _dpr;
-
-  let allowedX;
-  if (_vpW >= scaledWidth) {
-    allowedX = Math.round((_vpW - scaledWidth) / 2);
-  } else {
-    allowedX = clamp(proposedX, _vpW - scaledWidth, 0);
-  }
-
-  let allowedY;
-  if (_vpH >= scaledHeight) {
-    allowedY = Math.round((_vpH - scaledHeight) / 2);
-  } else {
-    allowedY = clamp(proposedY, _vpH - scaledHeight, 0);
-  }
-
-  offsetX = Math.round(allowedX);
-  offsetY = Math.round(allowedY);
+  offsetX = Math.round(event.clientX - panStartX);
+  offsetY = Math.round(event.clientY - panStartY);
+  // clampOffsets() is called inside redraw() — no need to duplicate it here
   redraw();
 
-  if (proposedX !== allowedX) panStartX = event.clientX - allowedX;
-  if (proposedY !== allowedY) panStartY = event.clientY - allowedY;
+  // Re-anchor panStart if clamping moved the offset away from the proposed position
+  // so the pan doesn't drift when hitting a boundary
+  panStartX = event.clientX - offsetX;
+  panStartY = event.clientY - offsetY;
 }
 
 function handlePanEnd() {
@@ -2166,7 +2159,8 @@ viewport.addEventListener("touchend", (e) => {
   }
   
   // TAP TO PLACE: If it was 1 finger, it ended, didn't drag, and started on the canvas (not a palette/UI tap)
-  if (!isTouchDragging && !touchStartedOnUI && e.changedTouches.length === 1 && e.touches.length === 0) {
+  // Skip when hand tool is active — hand tool only pans, never places pixels
+  if (!isTouchDragging && !touchStartedOnUI && tool !== 'hand' && e.changedTouches.length === 1 && e.touches.length === 0) {
      const touch = e.changedTouches[0];
      const coords = getCanvasCoords(touch.clientX, touch.clientY);
      applyToolAtCell(coords.x, coords.y);

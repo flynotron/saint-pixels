@@ -9,8 +9,8 @@
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <!-- hCaptcha -->
   <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
-  <script type="module" crossorigin src="/assets/index-BgWeYsQs.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-JiWpwGWm.css">
+  <script type="module" crossorigin src="/assets/index-ByYXifvH.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-cBqrlLTq.css">
 </head>
 <body
   class="h-screen overflow-hidden text-slate-100 font-sans flex items-stretch" style="background:#2e2e2f;"
@@ -226,7 +226,7 @@
 
         <!-- User chip -->
         <div class="inline-flex flex-row items-center gap-2.5 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap">
-          <span class="text-[0.75rem] font-semibold uppercase tracking-widest text-slate-400">Username</span>
+          <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">Username</span>
           <strong id="current-user" class="text-[0.75rem] font-semibold" x-text="currentUser || 'Guest'"></strong>
           <button
             id="logoutButton"
@@ -238,22 +238,22 @@
 
         <!-- Live players -->
         <div class="inline-flex flex-row items-center gap-2 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap">
-          <span class="text-[0.75rem] font-semibold uppercase tracking-widest text-slate-400">Live Players</span>
+          <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">Live Players</span>
           <strong id="live-count" class="text-[0.75rem] font-semibold" x-text="liveCount"></strong>
         </div>
 
         <!-- Current tool -->
         <div class="inline-flex flex-row items-center gap-2 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap">
-          <span class="text-[0.75rem] font-semibold uppercase tracking-widest text-slate-400">Current Tool</span>
+          <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">Current Tool</span>
           <strong id="current-tool" class="text-[0.75rem] font-semibold" x-text="currentTool"></strong>
         </div>
 
         <!-- Current color -->
         <div class="inline-flex flex-row items-center gap-2 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap">
-          <span class="text-[0.75rem] font-semibold uppercase tracking-widest text-slate-400">Current Color</span>
+          <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">Current Color</span>
           <span
             id="current-color"
-            class="font-mono text-[0.75rem] font-semibold px-2.5 py-1 rounded-lg border border-white/30 text-slate-100"
+            class="font-mono text-[0.75rem] font-semibold px-2.5 py-1 rounded-lg text-slate-100" style="box-shadow:0 0 0 1.5px rgba(0,0,0,0.55),0 0 0 2.5px rgba(255,255,255,0.18);"
             :style="`background:${currentColor}`"
             x-text="currentColor.toUpperCase()"
           ></span>
@@ -261,13 +261,13 @@
 
         <!-- Zoom -->
         <div class="inline-flex flex-row items-center gap-2 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap">
-          <span class="text-[0.75rem] font-semibold uppercase tracking-widest text-slate-400">Zoom</span>
+          <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">Zoom</span>
           <strong id="zoom-level" class="text-[0.75rem] font-semibold" x-text="zoomLevel + '%'"></strong>
         </div>
 
         <!-- Coordinates (visible on mobile) -->
         <div class="inline-flex flex-row items-center gap-2 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap mob-coords-chip">
-          <span class="text-[0.75rem] font-semibold uppercase tracking-widest text-slate-400">XY</span>
+          <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">XY</span>
           <strong id="coord-topbar" class="text-[0.75rem] font-semibold font-mono">—</strong>
         </div>
 
