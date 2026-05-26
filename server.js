@@ -73,6 +73,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 initializeDatabase(db);
 
+// ── Startup config checks ─────────────────────────────────────────────────────
+if (!process.env.APP_BASE_URL) {
+  console.warn('[config] WARNING: APP_BASE_URL is not set. Password reset and email verification links will point to http://localhost:3000 which will NOT work in production. Set APP_BASE_URL to your public domain (e.g. https://yourdomain.com).');
+}
+if (!process.env.RESEND_API_KEY) {
+  console.warn('[config] WARNING: RESEND_API_KEY is not set. Emails (verification, password reset) will only be printed to the console.');
+}
+
 // Wire the DB into helpers that need it
 setSessionDb(db);
 setCooldownDb(db);
@@ -359,7 +367,10 @@ app.post('/api/forgot-password', forgotPasswordLimiter, async (req, res) => {
 app.post('/api/reset-password', async (req, res) => {
   const { token, password } = req.body || {};
   if (!token || !password) return res.status(400).json({ error: 'Token and password are required.' });
+  if (typeof token !== 'string' || token.length > 128)
+    return res.status(400).json({ error: 'Invalid token.' });
   if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  if (password.length > 256) return res.status(400).json({ error: 'Password too long.' });
 
   try {
     const row = db.prepare(

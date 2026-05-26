@@ -1191,19 +1191,9 @@ function createPaletteButton(entry) {
 
   button.addEventListener('click', () => {
     if (_suppressNextClick) { _suppressNextClick = false; return; }
-    // Always activate from baseColor so a single tap resets any variation
-    // and the palette swatch reliably highlights the canonical slot color.
-    const canonical = normalizeHexColor(button.dataset.baseColor || button.dataset.color);
-    const current   = normalizeHexColor(button.dataset.color);
-    if (current !== canonical) {
-      // Restore DOM button to its base color
-      button.style.background = canonical;
-      button.dataset.color = canonical;
-      // Sync paletteColors so renderPalette() doesn't re-apply the variation
-      const pcIdx = paletteColors.findIndex(e => normalizeHexColor(e.color) === current);
-      if (pcIdx !== -1) paletteColors[pcIdx] = asPaletteEntry({ ...paletteColors[pcIdx], color: canonical });
-    }
-    setColor(canonical);
+    // Select the current color of this swatch (may be a picked variation)
+    const current = normalizeHexColor(button.dataset.color);
+    setColor(current);
   });
 
   button.addEventListener('dblclick', (e) => {
@@ -1390,13 +1380,7 @@ function startAction(event) {
 
   // If holding shift OR the active tool is 'hand', trigger panning
   if (event.shiftKey || tool === 'hand') {
-    isPanning = true;
-    panStartX = event.clientX - offsetX;
-    panStartY = event.clientY - offsetY;
-    
-    // Switch cursor look to a closed grabbing fist
-    viewport.classList.remove('tool-hand-active');
-    viewport.classList.add('tool-hand-dragging');
+    handlePanStart(event);
     return;
   }
 
@@ -1678,8 +1662,8 @@ function setAuthMode(mode) {
   }
 }
 
-if (authTabLogin)    authTabLogin.addEventListener('click',    () => setAuthMode('login'));
-if (authTabRegister) authTabRegister.addEventListener('click', () => setAuthMode('register'));
+if (authTabLogin)    authTabLogin.addEventListener('click',    () => { setAuthMode('login');    syncPasswordAutocomplete(); });
+if (authTabRegister) authTabRegister.addEventListener('click', () => { setAuthMode('register'); syncPasswordAutocomplete(); });
 
 // Unified submit button triggers the right handler based on current mode
 if (authSubmit) {
@@ -1689,8 +1673,27 @@ if (authSubmit) {
   });
 }
 
+// Also handle native form submit (enables iOS password manager save prompt)
+const authForm = document.getElementById('authForm');
+if (authForm) {
+  authForm.addEventListener('submit', event => {
+    event.preventDefault();
+    if (authMode === 'register') handleRegister(); else handleLogin();
+  });
+}
+
+// Switch autocomplete on the password field based on auth mode so
+// iOS/Safari knows whether to offer saved passwords or to save a new one.
+function syncPasswordAutocomplete() {
+  if (authPassword) {
+    authPassword.setAttribute('autocomplete',
+      authMode === 'register' ? 'new-password' : 'current-password');
+  }
+}
+
 // Initialise to login mode
 setAuthMode('login');
+syncPasswordAutocomplete();
 
 // ─── Email verification banner ───────────────────────────────────────────────
 const resendVerifyBtn = document.getElementById('resendVerifyBtn');
@@ -2175,7 +2178,11 @@ viewport.addEventListener("touchend", (e) => {
   // Skip when hand tool is active — hand tool only pans, never places pixels
   if (!isTouchDragging && !touchStartedOnUI && tool !== 'hand' && e.changedTouches.length === 1 && e.touches.length === 0) {
      const touch = e.changedTouches[0];
-     const coords = getCanvasCoords(touch.clientX, touch.clientY);
+     // iOS reports clientY at the TOP of the contact ellipse, not its center.
+     // Adding radiusY (half the vertical touch diameter) corrects the perceived
+     // tap position so the pixel lands where the majority of the finger was.
+     const radiusY = touch.radiusY || 0;
+     const coords = getCanvasCoords(touch.clientX, touch.clientY + radiusY);
      applyToolAtCell(coords.x, coords.y);
   }
 });
@@ -2217,6 +2224,7 @@ viewport.addEventListener("touchend", (e) => {
       filtersEl.querySelectorAll('.lb-filter-btn').forEach(b => b.classList.remove('lb-filter-active'));
       btn.classList.add('lb-filter-active');
       activePeriod = btn.dataset.period;
+      hasFetchedOnce = false; // Show loading indicator for the newly selected period
 
       // Update reset note text
       if (resetNote) {
@@ -2372,15 +2380,25 @@ viewport.addEventListener("touchend", (e) => {
     }).join('');
   }
 
+  let hasFetchedOnce = false;
+
   async function fetchLeaderboard() {
-    list.innerHTML = '<li class="lb-loading">Loading…</li>';
+    // Only show the loading placeholder on the very first fetch.
+    // Subsequent refreshes update the list silently so there's no flash.
+    if (!hasFetchedOnce) {
+      list.innerHTML = '<li class="lb-loading">Loading…</li>';
+    }
     try {
       const res = await fetch(`/api/leaderboard?period=${activePeriod}`);
       if (!res.ok) throw new Error('Leaderboard fetch failed');
       const data = await res.json();
       render(data.leaderboard || []);
+      hasFetchedOnce = true;
     } catch {
-      list.innerHTML = '<li class="lb-loading">Unable to load…</li>';
+      // Only replace content with error if we haven't shown real data yet
+      if (!hasFetchedOnce) {
+        list.innerHTML = '<li class="lb-loading">Unable to load…</li>';
+      }
     }
   }
 

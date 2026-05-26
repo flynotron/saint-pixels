@@ -44,11 +44,14 @@
       <h2 class="text-2xl font-bold m-0">Saint-Pixels</h2>
       <p class="m-0 text-slate-400">Login or create an account to place pixels on the live board.</p>
 
+      <form id="authForm" autocomplete="on" onsubmit="return false;">
+      <div class="grid gap-4">
       <label class="grid gap-2 text-slate-100">
         Username
         <input
           type="text"
           id="authUsername"
+          name="username"
           autocomplete="username"
           class="w-full px-4 py-3 rounded-2xl border border-white/10 bg-white/5 text-slate-100 focus:outline-none focus:border-sky-400/60"
         />
@@ -59,6 +62,7 @@
           <input
             type="password"
             id="authPassword"
+            name="password"
             autocomplete="current-password"
             class="w-full px-4 py-3 pr-12 rounded-2xl border border-white/10 bg-white/5 text-slate-100 focus:outline-none focus:border-sky-400/60"
           />
@@ -109,6 +113,7 @@
         <input
           type="email"
           id="authEmail"
+          name="email"
           autocomplete="email"
           placeholder="you@example.com"
           class="w-full px-4 py-3 rounded-2xl border border-white/10 bg-white/5 text-slate-100 focus:outline-none focus:border-sky-400/60"
@@ -130,7 +135,7 @@
       <div class="flex gap-3 flex-wrap">
         <button
           id="authSubmit"
-          type="button"
+          type="submit"
           class="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-sky-500/20 border-sky-400/60 text-white font-semibold hover:bg-sky-400/35 transition-colors"
         >Login</button>
       </div>
@@ -140,6 +145,8 @@
       <button id="authRegister" type="button" style="display:none;"></button>
 
       <div id="authMessage" class="min-h-[1.4em] text-red-300 text-sm"></div>
+      </div>
+      </form>
     </div>
   </div>
 
