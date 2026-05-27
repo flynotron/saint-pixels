@@ -22,6 +22,14 @@
 let _db = null;
 
 /**
+ * In-memory set of IPs currently in-flight (between checkIp and recordIp).
+ * Closes the race-condition window where two concurrent requests from the same
+ * IP both pass checkIp before either has called recordIp.
+ * @type {Set<string>}
+ */
+const _ipInFlight = new Set();
+
+/**
  * Base cooldown in ms — mirrors the per-user cooldown in cooldown.js.
  * Keep these in sync or import from a shared config if you add one.
  */
@@ -177,10 +185,17 @@ function _isMultiAccountIp(ip, username, now) {
  */
 function ipCooldownMiddleware(req, res, next) {
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-  // We need the username too — read it from the session header if present.
-  // We do a lightweight token lookup instead of importing getSession to
-  // avoid a circular dependency.
   const username = _getUsernameFromReq(req) || '__unknown__';
+
+  // If this IP already has a request in-flight, reject immediately.
+  // This closes the race where two concurrent requests both pass checkIp
+  // before either has called recordIp.
+  if (_ipInFlight.has(ip)) {
+    return res.status(429).json({
+      error: 'IP cooldown active.',
+      cooldown: BASE_COOLDOWN_MS,
+    });
+  }
 
   const result = checkIp(ip, username);
   if (!result.allowed) {
@@ -189,6 +204,13 @@ function ipCooldownMiddleware(req, res, next) {
       cooldown: result.cooldown,
     });
   }
+
+  // Reserve this IP slot for the duration of the request
+  _ipInFlight.add(ip);
+  // Always release — whether the handler succeeds, throws, or responds early
+  res.on('finish', () => _ipInFlight.delete(ip));
+  res.on('close',  () => _ipInFlight.delete(ip));
+
   next();
 }
 

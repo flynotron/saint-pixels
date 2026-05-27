@@ -12,6 +12,10 @@ function dispatchStateChange(detail) {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+// Prevent default form submission (replaces the removed onsubmit="return false;" attr,
+// which was blocked by Content-Security-Policy script-src-attr 'none').
+document.getElementById('authForm')?.addEventListener('submit', e => e.preventDefault());
+
 const canvas = document.getElementById('canvas');
 const overlay = document.getElementById('overlay');
 const gridCanvas = document.getElementById('grid');
@@ -56,7 +60,9 @@ const DEFAULT_PALETTE = [
   { id: 7, label: 'Blue', color: '#3b82f6' },
   { id: 8, label: 'Indigo', color: '#6366f1' },
   { id: 9, label: 'Violet', color: '#8b5cf6' },
-  { id: 10, label: 'Pink', color: '#ec4899' }
+  { id: 10, label: 'Pink', color: '#ec4899' },
+  { id: 11, label: 'Light Brown', color: '#a0785a' },
+  { id: 12, label: 'Beige', color: '#f5deb3' }
 ];
 const paletteColors = [];
 const CUSTOM_PALETTE_KEY = 'sp_customPalette';
@@ -149,6 +155,9 @@ let panStartY = 0;
 let dragStart = null;
 let gridEnabled = true;
 let tool = 'brush';
+/** Set to true when the eyedropper fires on mobile so the same touchend that
+ *  triggered the pick doesn't also place a pixel after switching to brush. */
+let _eyedropperJustFired = false;
 let color = '#000000';
 let pixelSize = 1;
 let isMouseDown = false;
@@ -246,16 +255,18 @@ async function loadServerPalette() {
  * Ensure the palette contains the seven rainbow colors (red, orange, yellow,
  * green, blue, indigo, violet). If any are missing, append them from
  * DEFAULT_PALETTE so the user always has the full rainbow available.
+ * Also ensures any other DEFAULT_PALETTE entries (e.g. Light Brown, Beige)
+ * that the server palette omits are appended.
  */
 function ensureRainbowInPalette(list) {
   if (!Array.isArray(list)) return;
-  const rainbowLabels = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Violet'];
-  const present = new Set(list.map(e => String(e.label || e.color || '').toLowerCase()));
-  // Add missing rainbow entries from DEFAULT_PALETTE preserving original order
+  const present = new Set(list.map(e => normalizeHexColor(e.color)));
+  // Add every DEFAULT_PALETTE entry that's missing from the loaded palette
   DEFAULT_PALETTE.forEach(entry => {
-    if (rainbowLabels.includes(entry.label) && !present.has(String(entry.label).toLowerCase())) {
+    const norm = normalizeHexColor(entry.color);
+    if (!present.has(norm)) {
       list.push(asPaletteEntry(entry));
-      present.add(String(entry.label).toLowerCase());
+      present.add(norm);
     }
   });
 }
@@ -870,20 +881,23 @@ function applyToolAtCell(x, y) {
     // Only update in-place when the hue is genuinely close (within 30°); otherwise
     // fall back to adding a new entry so completely novel colors still get recorded.
     const HUE_THRESHOLD = 30;
+    // Track the specific button updated by the eyedropper so setColor can mark
+    // exactly that one as selected — prevents two same-hex buttons both lighting up.
+    let eyedropperBtn = null;
     if (bestIdx !== -1 && bestDist <= HUE_THRESHOLD) {
       // The exact color currently stored at the best slot — used to match DOM buttons precisely.
       const slotColor = normalizeHexColor(paletteColors[bestIdx].color);
       // Update paletteColors (source of truth) first
       paletteColors[bestIdx] = asPaletteEntry({ ...paletteColors[bestIdx], color: norm });
       // Sync ONLY the buttons whose dataset.color exactly matches the slot being replaced.
-      // This prevents updating every blue-family button when picking a dark blue —
-      // which previously happened because the second hue scan caught all similar hues.
+      // Prefer the fullscreen-palette button (visible on mobile) as the preferred one.
       document.querySelectorAll('#palette button, #fullscreen-palette button').forEach(btn => {
         if (normalizeHexColor(btn.dataset.color) === slotColor) {
           btn.style.background = norm;
           btn.dataset.color = norm;
           btn.title = norm.toUpperCase();
           // dataset.baseColor intentionally NOT updated — keeps the hue family anchor
+          eyedropperBtn = btn; // last updated btn wins (fullscreen-palette comes after #palette in DOM)
         }
       });
     } else {
@@ -894,7 +908,8 @@ function applyToolAtCell(x, y) {
       }
     }
 
-    setColor(norm);
+    setColor(norm, eyedropperBtn);
+    _eyedropperJustFired = true;
     setTool('brush');
     redraw();
     return;
@@ -1262,6 +1277,14 @@ function renderPalette() {
       fsPaletteEl.appendChild(createPaletteButton(entry));
     }
   });
+
+  // Variation hint — visible only on mobile via .mob-variation-hint CSS class
+  if (fsPaletteEl) {
+    const hint = document.createElement('span');
+    hint.className = 'mob-variation-hint';
+    hint.textContent = 'Double-tap a color for lighter / darker variations';
+    fsPaletteEl.appendChild(hint);
+  }
 }
 
 async function initPalette() {
@@ -1312,7 +1335,7 @@ function applyColorSwatchStyles(hex) {
   // currentColor swatch styling is handled by Alpine :style binding
 }
 
-function setColor(newColor) {
+function setColor(newColor, preferredBtn) {
   const norm = normalizeHexColor(newColor);
   color = norm;
   if (colorInput) colorInput.value = norm;
@@ -1324,10 +1347,23 @@ function setColor(newColor) {
   const activatedIdx = paletteColors.findIndex(e => normalizeHexColor(e.color) === norm);
   if (activatedIdx !== -1) lastUsedPaletteIdx = activatedIdx;
 
-  document.querySelectorAll('#palette button, #fullscreen-palette button').forEach(b => {
-    const btnColor = normalizeHexColor(b.dataset.color);
-    b.classList.toggle('selected', btnColor === norm);
-  });
+  // If a specific button is preferred (e.g. after an eyedropper pick that
+  // updates exactly one slot), mark only that button as selected so two
+  // buttons with the same hex never both light up at once.
+  const allBtns = document.querySelectorAll('#palette button, #fullscreen-palette button');
+  if (preferredBtn) {
+    allBtns.forEach(b => b.classList.remove('selected'));
+    preferredBtn.classList.add('selected');
+  } else {
+    // Normal path: first button whose color matches gets selected; if multiple
+    // share the same hex (e.g. after a variation pick), only the first is marked.
+    let marked = false;
+    allBtns.forEach(b => {
+      const matches = !marked && normalizeHexColor(b.dataset.color) === norm;
+      b.classList.toggle('selected', matches);
+      if (matches) marked = true;
+    });
+  }
 
   // Redraw immediately so cursor preview color updates without waiting for mousemove
   redraw();
@@ -1609,6 +1645,7 @@ toolButtons.forEach(button => {
 
 // ─── Captcha helpers ────────────────────────────────────────────────────────
 function getCaptchaToken() {
+  if (isLocalDev()) return 'dev-bypass';
   if (typeof hcaptcha !== 'undefined') {
     const response = hcaptcha.getResponse();
     // getResponse() returns '' when not yet completed or already used
@@ -1856,6 +1893,15 @@ window.addEventListener('beforeunload', () => {
   removeClientHeartbeat();
 });
 
+/**
+ * Returns true when running on a local dev origin that should bypass auth and
+ * hCaptcha.  Covers http://localhost:3000 and http://192.168.1.136:3000.
+ */
+function isLocalDev() {
+  const { hostname, port } = window.location;
+  return port === '3000' && (hostname === 'localhost' || hostname === '192.168.1.136');
+}
+
 window.addEventListener('load', () => {
   // 1. Size the canvas and draw the white board instantly (fixes the blue flash)
   resizeViewport();
@@ -1863,7 +1909,15 @@ window.addEventListener('load', () => {
 
   // 2. Fetch server data asynchronously in the background
   initPalette();
-  updateAuthState();
+
+  // On local dev origins skip the login overlay entirely — no token needed,
+  // no hCaptcha needed.  The server already accepts 'dev-bypass' as the
+  // captcha token when HCAPTCHA_SECRET is unset.
+  if (isLocalDev()) {
+    setCurrentUser('dev', true);   // marks user as logged-in, hides auth overlay
+  } else {
+    updateAuthState();
+  }
   
   // 3. Start game loops
   registerClientHeartbeat();
@@ -2177,6 +2231,7 @@ viewport.addEventListener("touchend", (e) => {
   // TAP TO PLACE: If it was 1 finger, it ended, didn't drag, and started on the canvas (not a palette/UI tap)
   // Skip when hand tool is active — hand tool only pans, never places pixels
   if (!isTouchDragging && !touchStartedOnUI && tool !== 'hand' && e.changedTouches.length === 1 && e.touches.length === 0) {
+     if (_eyedropperJustFired) { _eyedropperJustFired = false; return; }
      const touch = e.changedTouches[0];
      // iOS reports clientY at the TOP of the contact ellipse, not its center.
      // Adding radiusY (half the vertical touch diameter) corrects the perceived

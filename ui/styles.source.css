@@ -234,6 +234,8 @@ header.flex { will-change: transform; }
 
 /* Coords chip — hidden on desktop, shown on mobile */
 .mob-coords-chip { display: none !important; }
+/* Mobile-only elements hidden on desktop */
+.mob-variation-hint { display: none !important; }
 /* Mobile contribute + live count — hidden on desktop */
 .mob-contribute-btn,
 .mob-donate-btn,
@@ -245,35 +247,146 @@ header.flex { will-change: transform; }
 
 /* ══════════════════════════════════════════════════════════════
    MOBILE UI — PORTRAIT (≤ 720px)
-   Locked to portrait orientation to prevent landscape conflicts.
+   All layout is position:fixed — the normal document flow is
+   irrelevant. Selectors use IDs where possible for robustness.
    ══════════════════════════════════════════════════════════════ */
 @media (max-width: 720px) and (orientation: portrait) {
   :root {
-    --mob-topbar-h: 48px;
-    --mob-toolbar-h: 40px;
-    --mob-top-total: 88px;
-    --mob-palette-h: 58px;
-    --mob-spawn-h:   48px;
-    --mob-bottom-total: 106px;
+    --mob-topbar-h:    48px;
+    --mob-toolbar-h:   40px;
+    --mob-top-total:   88px;  /* topbar(48) + toolbar(40) */
+    --mob-palette-h:  108px;  /* 2 rows of swatches */
+    --mob-spawn-h:     48px;
+    --mob-bottom-total: 156px; /* palette(108) + spawn(48) */
   }
 
+  /* ── Base resets ───────────────────────────────────────────── */
   html, body {
     overflow: hidden !important;
-    overscroll-behavior: none;
-    height: 100dvh;
+    overscroll-behavior: none !important;
+    height: 100dvh !important;
+    width: 100% !important;
+    /* ensure body doesn't flex-shrink children in weird ways */
+    display: block !important;
   }
 
   .app-shell {
-    padding: 0;
-    height: 100dvh;
-    overflow: hidden;
+    padding: 0 !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+    display: block !important; /* don't let flex-col cause stacking issues */
   }
 
-  /* Hide decorative brand items */
+  /* Hide decorative desktop-only brand items */
   .brand-tagline,
   .brand-contribute { display: none !important; }
 
-  /* Controls panel collapses to a ghost so fixed children can escape */
+  /* ── Topbar — fixed strip at the very top ──────────────────── */
+  body > div.app-shell header,
+  header.flex {
+    position: fixed !important;
+    top: 0 !important; left: 0 !important; right: 0 !important;
+    z-index: 300 !important;
+    height: var(--mob-topbar-h) !important;
+    min-height: unset !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    padding: 0 50px 0 max(8px, env(safe-area-inset-left)) !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+    background: rgba(58, 58, 59, 0.98) !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+  header.flex::-webkit-scrollbar { display: none; }
+  header.flex h1 { font-size: 0.85rem; font-weight: 700; white-space: nowrap; }
+
+  /* ── Status chips inline in topbar ────────────────────────── */
+  [role="group"] {
+    display: flex !important;
+    position: static !important;
+    flex-shrink: 0 !important;
+    flex-wrap: nowrap !important;
+    gap: 5px !important;
+    pointer-events: none !important;
+  }
+  [role="group"] > div {
+    pointer-events: auto;
+    padding: 3px 7px !important;
+    gap: 4px !important;
+    background: rgba(255,255,255,0.07) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 8px !important;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+  }
+  /* Hide username/logout and live-players chips (shown via mob-live-count instead) */
+  [role="group"] > div:nth-child(1),
+  [role="group"] > div:nth-child(2) { display: none !important; }
+  #logoutButton { display: none !important; }
+
+  /* Mobile-only topbar items */
+  .mob-coords-chip  { display: inline-flex !important; }
+  .mob-contribute-btn,
+  .mob-donate-btn,
+  .mob-live-count {
+    display: inline-flex !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+  .palette-toolbox-spacer { display: block !important; }
+
+  /* Color-picker wheel fixed at topbar right */
+  .color-picker {
+    position: fixed !important;
+    top: 7px !important; right: 8px !important;
+    z-index: 401 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  .color-picker input[type="color"] {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.22);
+    cursor: pointer; padding: 2px; background: transparent;
+  }
+
+  /* ── Canvas toolbar — fixed below topbar ───────────────────── */
+  .canvas-toolbar {
+    position: fixed !important;
+    top: var(--mob-topbar-h) !important;
+    left: 0 !important; right: 0 !important;
+    z-index: 299 !important;
+    height: var(--mob-toolbar-h) !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    padding: 5px 8px !important;
+    gap: 7px !important;
+    background: rgba(58, 58, 59, 0.98) !important;
+    border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+    border-radius: 0 !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+  .canvas-toolbar::-webkit-scrollbar { display: none; }
+  .canvas-toolbar > * { flex-shrink: 0; white-space: nowrap; font-size: 0.75rem; }
+  .canvas-toolbar label { display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; }
+  .canvas-toolbar input[type="range"] { width: 75px; }
+  .canvas-toolbar .toggle-btn,
+  .canvas-toolbar .accent { padding: 3px 9px; border-radius: 8px; font-size: 0.75rem; line-height: 1.4; }
+  .canvas-info { display: none !important; }
+
+  /* ── Sidebar collapses to a zero-size ghost ────────────────── */
+  main > aside,
   aside {
     position: fixed !important;
     top: 0 !important; left: 0 !important;
@@ -286,8 +399,8 @@ header.flex { will-change: transform; }
     z-index: 399 !important;
     gap: 0 !important;
     display: flex !important;
+    flex-direction: column !important;
   }
-
   aside > section { display: none !important; }
   aside > section:first-child {
     display: block !important;
@@ -299,180 +412,88 @@ header.flex { will-change: transform; }
   }
   aside > section:first-child > h2 { display: none !important; }
 
-  /* Topbar */
-  header.flex {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 300;
-    height: var(--mob-topbar-h);
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    padding: 0 50px 0 max(8px, env(safe-area-inset-left));
-    border-radius: 0;
-    border-bottom: 1px solid rgba(27, 27, 27, 0.08);
-    background: rgba(58, 58, 59, 0.98);
-    backdrop-filter: blur(16px);
-    box-shadow: none;
-    min-height: unset;
-  }
-  header.flex::-webkit-scrollbar { display: none; }
-
-  header.flex h1 {
-    font-size: 0.85rem;
-    font-weight: 700;
-    white-space: nowrap;
+  /* ── Main grid collapses to single column ──────────────────── */
+  main, main[style] {
+    display: block !important;
+    grid-template-columns: 1fr !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+    height: 100dvh !important;
   }
 
-  /* Status chips inline in topbar */
-  [role="group"] {
-    display: flex !important;
-    position: static !important;
-    flex-shrink: 0;
-    flex-wrap: nowrap;
-    gap: 5px;
-    pointer-events: none;
-  }
-
-  [role="group"] > div {
-    pointer-events: auto;
-    padding: 3px 7px;
-    gap: 4px;
-    background: rgba(255,255,255,0.07) !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 8px;
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
-
-  /* Hide username/logout and live players chips */
-  [role="group"] > div:nth-child(1),
-  [role="group"] > div:nth-child(2) { display: none !important; }
-  #logoutButton { display: none !important; }
-
-  /* Show the coords chip on mobile */
-  .mob-coords-chip { display: inline-flex !important; }
-  /* Show mobile-only contribute + donate + live count (hidden on desktop) */
-  .mob-contribute-btn,
-  .mob-donate-btn,
-  .mob-live-count {
-    display: inline-flex !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
-  }
-  /* Show toolbox spacer on mobile */
-  .palette-toolbox-spacer { display: block !important; }
-
-  /* Color picker — fixed circle at topbar right */
-  .color-picker {
-    position: fixed;
-    top: 6px; right: 8px;
-    z-index: 401;
-    margin: 0;
-    display: flex;
-    align-items: center;
-  }
-  .color-picker input[type="color"] {
-    width: 34px; height: 34px;
-    border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.22);
-    cursor: pointer;
-    padding: 2px;
-    background: transparent;
-  }
-
-  /* Toolbar */
-  .canvas-toolbar {
-    position: fixed;
-    top: var(--mob-topbar-h); left: 0; right: 0;
-    z-index: 299;
-    height: var(--mob-toolbar-h);
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    padding: 5px 8px;
-    gap: 7px;
-    background: rgba(58, 58, 59, 0.98);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    border-radius: 0;
-  }
-  .canvas-toolbar::-webkit-scrollbar { display: none; }
-  .canvas-toolbar > * { flex-shrink: 0; white-space: nowrap; font-size: 0.75rem; }
-  .canvas-toolbar label { display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; }
-  .canvas-toolbar input[type="range"] { width: 75px; }
-  .canvas-toolbar .toggle-btn,
-  .canvas-toolbar .accent { padding: 3px 9px; border-radius: 8px; font-size: 0.75rem; line-height: 1.4; }
-
-  .canvas-info { display: none !important; }
-
-  /* Canvas section */
+  /* ── Canvas section — fills space between toolbar and palette ─ */
+  /* Uses both the class combo AND the direct child selector for safety */
+  main > section,
   section.flex-col {
-    position: fixed;
-    top: var(--mob-top-total);
-    left: 0; right: 0;
-    bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px));
-    padding: 0;
-    border-radius: 0;
-    border: none;
-    background: #2e2e2f;
-    overflow: hidden;
-    flex-direction: column;
-    gap: 0;
-    z-index: 1;
+    position: fixed !important;
+    top: var(--mob-top-total) !important;
+    left: 0 !important; right: 0 !important;
+    bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    background: #2e2e2f !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    z-index: 1 !important;
     box-shadow: none !important;
   }
 
   .viewport-wrapper {
-    flex: 1;
-    min-height: 0;
-    position: relative;
-    overflow: hidden;
-    border: none;
-    border-radius: 0;
-    background: #2e2e2f;
-    display: flex;
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    position: relative !important;
+    overflow: hidden !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #2e2e2f !important;
+    display: flex !important;
   }
 
-  .viewport {
-    flex: 1;
-    width: 100%;
-    height: 100%;
-    position: relative;
-    overflow: hidden;
-    touch-action: none;
-    z-index: 1;
+  #viewport {
+    flex: 1 1 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    position: relative !important;
+    overflow: hidden !important;
+    touch-action: none !important;
+    z-index: 1 !important;
   }
 
   .viewport canvas {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    touch-action: none;
+    position: absolute !important;
+    top: 0 !important; left: 0 !important;
+    width: 100% !important; height: 100% !important;
+    touch-action: none !important;
   }
 
-  /* ── Cooldown Bar: portrait — working centered version ── */
+  /* ── Cooldown bar — centered above palette ──────────────────── */
+  #cooldownBar,
   .cooldown-bar {
     position: fixed !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 15px) !important;
-    left: calc(50%) !important;
-    /*transform: translateX(-20%) !important;*/
+    left: 50% !important;
+    transform: translateX(-50%) !important;
     width: auto !important;
     min-width: 150px !important;
     max-width: calc(100vw - 78px) !important;
     padding: 5px 12px !important;
     border-radius: 20px !important;
     z-index: 250 !important;
-    pointer-events: none;
+    pointer-events: none !important;
   }
   .cooldown-bar__label {
     font-size: 0.7rem !important;
     letter-spacing: 0.07em !important;
   }
 
-  /* Fullscreen button */
+  /* ── Fullscreen button ─────────────────────────────────────── */
+  #fullscreen-btn,
   .fullscreen-btn {
     position: fixed !important;
     right: 16px !important;
@@ -480,8 +501,7 @@ header.flex { will-change: transform; }
     z-index: 2147483647 !important;
     pointer-events: auto !important;
     display: flex !important;
-    width: 44px !important;
-    height: 44px !important;
+    width: 44px !important; height: 44px !important;
     background: rgba(0,0,0,0.8) !important;
     border-radius: 50% !important;
     border: 1px solid rgba(255,255,255,0.2) !important;
@@ -490,16 +510,16 @@ header.flex { will-change: transform; }
     justify-content: center !important;
   }
 
-  /* ── FIX: Tool List clearance ── */
+  /* ── Tool list — fixed column on the left above palette ────── */
   .tool-list {
     position: fixed !important;
-    bottom: calc(var(--mob-spawn-h) + var(--mob-palette-h) + env(safe-area-inset-bottom, 0px) + 10px) !important;
+    bottom: calc(var(--mob-spawn-h) + var(--mob-palette-h) + env(safe-area-inset-bottom, 0px)) !important;
     left: 0 !important;
-    top: auto !important; 
+    top: auto !important;
     transform: none !important;
     height: auto !important;
     width: 54px !important;
-    z-index: 280 !important;
+    z-index: 286 !important;
     display: flex !important;
     flex-direction: column !important;
     gap: 6px !important;
@@ -507,22 +527,19 @@ header.flex { will-change: transform; }
     background: rgba(58, 58, 59, 1) !important;
     backdrop-filter: none !important;
     border-top: 1px solid rgba(255,255,255,0.08) !important;
-    border-left: none !important;
     border-right: 1px solid rgba(255,255,255,0.08) !important;
+    border-left: none !important;
     border-bottom: none !important;
     border-radius: 0 14px 0 0 !important;
     align-items: center !important;
-    justify-content: center !important;
+    justify-content: flex-start !important;
     box-shadow: none !important;
   }
 
-  /* Only hand hidden on mobile; eyedropper + none stay visible */
   .tool--secondary[data-tool="hand"] { display: none !important; }
-
   .tool--secondary {
     padding: 0 !important;
-    width: 38px !important;
-    height: 38px !important;
+    width: 38px !important; height: 38px !important;
     min-height: unset !important;
     font-size: 0 !important;
     border-radius: 10px !important;
@@ -545,41 +562,38 @@ header.flex { will-change: transform; }
     box-shadow: 0 0 0 1px rgba(56,189,248,0.4) !important;
   }
 
-  /* Fullscreen palette strip */
+  /* ── Palette strip — fixed 2-row bar above spawn ───────────── */
+  #fullscreen-palette,
   .fullscreen-palette {
     display: flex !important;
     position: fixed !important;
     bottom: calc(var(--mob-spawn-h) + env(safe-area-inset-bottom, 0px)) !important;
-    left: 0 !important;
-    right: 0 !important;
+    left: 0 !important; right: 0 !important;
     top: auto !important;
     transform: none !important;
     height: var(--mob-palette-h) !important;
     flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    overflow-y: visible !important;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    align-items: center;
-    gap: 6px !important;
-    padding: 6px 16px 6px 16px !important;
-    box-sizing: content-box;
+    flex-wrap: wrap !important;
+    overflow: hidden !important;
+    align-content: center !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    padding: 6px 10px 6px 62px !important; /* left pad clears the tool-list column */
+    box-sizing: border-box !important;
     border-radius: 0 !important;
     border: none !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
     background: rgba(58, 58, 59, 1) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     z-index: 285 !important;
     box-shadow: none !important;
-    border-top: 1px solid rgba(255,255,255,0.08) !important;
   }
   .fullscreen-palette::-webkit-scrollbar { display: none; }
-
   .fullscreen-palette button {
     flex-shrink: 0 !important;
-    width: 28.5px !important;
-    height: 28.5px !important;
+    width: 28px !important; height: 28px !important;
     border-radius: 6px !important;
     border: 1px solid rgba(255,255,255,0.08) !important;
   }
@@ -590,71 +604,71 @@ header.flex { will-change: transform; }
     z-index: 2 !important;
   }
 
-  /* Spawn bar */
+  /* Mobile-only double-tap hint inside palette strip */
+  .mob-variation-hint {
+    display: block !important;
+    width: 100% !important;
+    text-align: center !important;
+    font-size: 0.63rem !important;
+    color: rgba(179,180,182,0.7) !important;
+    line-height: 1 !important;
+    margin: 0 !important; padding: 0 !important;
+    pointer-events: none !important;
+    flex-shrink: 0 !important;
+    order: 999 !important;
+  }
+
+  /* ── Spawn bar — fixed at the very bottom ──────────────────── */
   .footer-panel {
     display: flex !important;
     position: fixed !important;
     bottom: 0 !important;
     left: 0 !important; right: 0 !important;
-    min-height: var(--mob-spawn-h) !important;
     height: calc(var(--mob-spawn-h) + env(safe-area-inset-bottom, 0px)) !important;
+    min-height: var(--mob-spawn-h) !important;
+    padding: 0 10px !important;
     padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    flex-wrap: nowrap;
-    align-items: center;
-    padding: 0 10px;
-    gap: 6px;
-    background: rgba(58, 58, 59, 1);
-    border-top: 1px solid rgba(255,255,255,0.07);
-    z-index: 290;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: rgba(58, 58, 59, 1) !important;
+    border-top: 1px solid rgba(255,255,255,0.07) !important;
+    z-index: 290 !important;
     box-shadow: none !important;
+    backdrop-filter: none !important;
   }
   .footer-panel::-webkit-scrollbar { display: none; }
 
   .spawn-container input[type="number"] {
-    width: 50px;
-    font-size: 0.78rem;
-    padding: 5px 6px;
+    width: 50px; font-size: 0.78rem; padding: 5px 6px;
     background: rgba(255,255,255,0.06);
     border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 7px;
-    color: var(--text);
+    border-radius: 7px; color: var(--text);
   }
-
   .spawn-container > span:first-child,
   .spawn-zoom-label { display: none !important; }
-
   #spawn-zoom { width: 56px; }
-
   .spawn-container button {
-    padding: 5px 12px;
-    font-size: 0.78rem;
-    border-radius: 8px;
-    flex-shrink: 0;
+    padding: 5px 12px; font-size: 0.78rem; border-radius: 8px; flex-shrink: 0;
   }
 
-  /* Variation picker compact on mobile */
+  /* ── Variation picker compact ──────────────────────────────── */
   .variation-picker { font-size: 0; }
   .variation-picker[style] {
     grid-template-columns: 30px 42px 30px !important;
     grid-template-rows: 30px 42px 30px !important;
-    gap: 4px !important;
-    padding: 6px !important;
-    border-radius: 12px !important;
+    gap: 4px !important; padding: 6px !important; border-radius: 12px !important;
   }
 
   /* Auth card */
-  .auth-card {
-    width: calc(100% - 24px);
-    padding: 20px 18px;
-    border-radius: 20px;
-  }
+  .auth-card { width: calc(100% - 24px); padding: 20px 18px; border-radius: 20px; }
 
+  /* Perf: skip expensive compositing on mobile */
   .viewport canvas { will-change: auto; }
   #overlay { will-change: contents; }
-  header.flex, .canvas-toolbar, .footer-panel { backdrop-filter: none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════

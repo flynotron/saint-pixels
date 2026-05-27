@@ -107,6 +107,8 @@ function initializeDatabase(db) {
         ['Indigo', '6366f1'],
         ['Violet', '8b5cf6'],
         ['Pink',   'ec4899'],
+        ['Light Brown', 'a0785a'],
+        ['Beige',  'f5deb3'],
       ];
       db.transaction((colors) => {
         colors.forEach(([label, color]) => insertStmt.run(label, color));

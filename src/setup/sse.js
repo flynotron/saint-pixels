@@ -1,16 +1,11 @@
 /**
  * Server-Sent Events manager.
  *
- * Tracks every connected SSE client and automatically broadcasts the live
- * player count whenever someone connects or disconnects.  Also exposes a
- * `broadcast(data)` helper used by PlacePixel to push pixel events to all
- * connected browsers in real time.
- *
- * Usage (in your Express entry point):
- *
- *   const { initializeSSE, broadcastSSE } = require('./src/setup/sse.js');
- *   initializeSSE(app);
- *   initializeActions(app, db, pixelLimiter, broadcastSSE);
+ * initializeSSE(app, db, guardMiddleware?)
+ *   - app            Express application
+ *   - db             better-sqlite3 Database (optional — can also be set via setDb)
+ *   - guardMiddleware Optional Express middleware to run before accepting the
+ *                     SSE connection (e.g. sseConnectionGuard in server.js)
  */
 
 /** @type {Set<import('http').ServerResponse>} */
@@ -37,7 +32,6 @@ function broadcastSSE(data) {
     try {
       res.write(payload);
     } catch {
-      // Dead connection — will be cleaned up on 'close'
       clients.delete(res);
     }
   }
@@ -45,49 +39,47 @@ function broadcastSSE(data) {
 
 /**
  * Broadcast the current live player count to all connected clients.
- * Called automatically on connect / disconnect.
  */
 function broadcastCount() {
   broadcastSSE({ type: 'clients', count: clients.size });
 }
 
 /**
- * Register the GET /api/stream endpoint and wire up connect/disconnect
- * tracking so the live count stays accurate.
+ * Register the GET /api/stream endpoint.
  *
  * @param {import('express').Application} app
+ * @param {import('better-sqlite3').Database} [db]  — optional, can be set via setDb()
+ * @param {Function} [guardMiddleware]               — optional Express middleware
  */
-function initializeSSE(app) {
-  app.get('/api/stream', (req, res) => {
-    // Standard SSE headers
-    res.setHeader('Content-Type',  'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection',    'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx proxy buffering
+function initializeSSE(app, db, guardMiddleware) {
+  // Allow db to be injected via this call too
+  if (db) _db = db;
+
+  const handler = (req, res) => {
+    res.setHeader('Content-Type',      'text/event-stream');
+    res.setHeader('Cache-Control',     'no-cache');
+    res.setHeader('Connection',        'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    // Register client
     clients.add(res);
     broadcastCount();
 
-    // Send all existing pixels so the new client can paint the canvas immediately
+    // Send all existing pixels on connect so the new client can paint immediately
     if (_db) {
       try {
         const pixels = _db.prepare(
           'SELECT username, x, y, color FROM pixels ORDER BY placed_at ASC'
         ).all();
         if (pixels.length > 0) {
-          // Send in one batch payload for efficiency
-          const payload = `data: ${JSON.stringify({ type: 'init', pixels })}\n\n`;
-          res.write(payload);
+          res.write(`data: ${JSON.stringify({ type: 'init', pixels })}\n\n`);
         }
       } catch (err) {
         console.error('[sse] Failed to load initial pixels:', err);
       }
     }
 
-    // Send a heartbeat comment every 25 s to keep the connection alive through
-    // proxies / load balancers that close idle connections.
+    // Heartbeat every 25 s keeps the connection alive through proxies
     const heartbeat = setInterval(() => {
       try {
         res.write(': heartbeat\n\n');
@@ -97,13 +89,18 @@ function initializeSSE(app) {
       }
     }, 25_000);
 
-    // Deregister on disconnect
     req.on('close', () => {
       clearInterval(heartbeat);
       clients.delete(res);
       broadcastCount();
     });
-  });
+  };
+
+  if (typeof guardMiddleware === 'function') {
+    app.get('/api/stream', guardMiddleware, handler);
+  } else {
+    app.get('/api/stream', handler);
+  }
 }
 
 module.exports = { initializeSSE, broadcastSSE, setDb };

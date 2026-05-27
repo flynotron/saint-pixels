@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Saint-Pixels</title>
-  <!-- Tailwind CSS -->
+  <!-- Tailwind CSS compiled into styles.css — no CDN needed -->
   <!-- Alpine.js -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <!-- hCaptcha -->
   <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
-  <script type="module" crossorigin src="/assets/index-DqgdJ3bm.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CmLphArD.css">
+  <script type="module" src="/app.js"></script>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body
   class="h-screen overflow-hidden text-slate-100 font-sans flex items-stretch" style="background:#2e2e2f;"
@@ -44,7 +44,7 @@
       <h2 class="text-2xl font-bold m-0">Saint-Pixels</h2>
       <p class="m-0 text-slate-400">Login or create an account to place pixels on the live board.</p>
 
-      <form id="authForm" autocomplete="on" onsubmit="return false;">
+      <form id="authForm" autocomplete="on">
       <div class="grid gap-4">
       <label class="grid gap-2 text-slate-100">
         Username
@@ -167,7 +167,7 @@
   </div>
 
   <!-- ══════════════════ APP SHELL ══════════════════ -->
-  <div class="w-full flex flex-col h-screen overflow-hidden px-6 py-5">
+  <div class="app-shell w-full flex flex-col h-screen overflow-hidden px-6 py-5">
 
     <!-- TOPBAR -->
     <header class="flex flex-nowrap gap-3 justify-between items-center px-4 py-2.5 border border-white/10 rounded-3xl bg-[rgba(58,58,59,0.98)] shadow-xl overflow-x-auto overflow-y-hidden scrollbar-thin min-h-[54px] shrink-0">
@@ -301,6 +301,9 @@
           <div class="mt-2.5">
             <button id="add-color" class="w-full px-3.5 py-2.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-sky-400/25 hover:border-sky-400/80 transition-colors hidden">+ Add color</button>
           </div>
+          <p class="m-0 mt-1.5 text-slate-400 text-[0.78rem] text-center leading-snug font-bold">
+            <strong>Double-click / tap a color</strong> to create lighter &amp; darker variations
+          </p>
         </section>
 
         <!-- Help -->
@@ -310,7 +313,6 @@
             <li>Left click the board to place a pixel</li>
             <li>Use <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">W</kbd><kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">A</kbd><kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">S</kbd><kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">D</kbd> to navigate palette colors</li>
             <li>Use <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">F</kbd> to toggle fullscreen</li>
-            <li>Double-click a color to create lighter &amp; darker variations</li>
             <li>Right click a color to remove from your palette</li>
             <li>Arrow keys move the cursor (hold repeats slowly)</li>
             <li><kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">Enter</kbd> places a pixel at the cursor</li>
