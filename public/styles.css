@@ -15,6 +15,7 @@
     --color-emerald-400: oklch(76.5% 0.177 163.223);
     --color-sky-400: oklch(74.6% 0.16 232.661);
     --color-sky-500: oklch(68.5% 0.169 237.323);
+    --color-indigo-400: oklch(67.3% 0.182 276.935);
     --color-slate-100: oklch(96.8% 0.007 247.896);
     --color-slate-200: oklch(92.9% 0.013 255.508);
     --color-slate-300: oklch(86.9% 0.022 252.894);
@@ -705,8 +706,8 @@
   .text-\[0\.75rem\] {
     font-size: 0.75rem;
   }
-  .text-\[0\.78rem\] {
-    font-size: 0.78rem;
+  .text-\[0\.82rem\] {
+    font-size: 0.82rem;
   }
   .text-\[0\.85rem\] {
     font-size: 0.85rem;
@@ -842,6 +843,16 @@
       }
     }
   }
+  .hover\:border-indigo-400\/80 {
+    &:hover {
+      @media (hover: hover) {
+        border-color: color-mix(in srgb, oklch(67.3% 0.182 276.935) 80%, transparent);
+        @supports (color: color-mix(in lab, red, red)) {
+          border-color: color-mix(in oklab, var(--color-indigo-400) 80%, transparent);
+        }
+      }
+    }
+  }
   .hover\:border-sky-400\/80 {
     &:hover {
       @media (hover: hover) {
@@ -868,6 +879,16 @@
         background-color: color-mix(in srgb, #000 85%, transparent);
         @supports (color: color-mix(in lab, red, red)) {
           background-color: color-mix(in oklab, var(--color-black) 85%, transparent);
+        }
+      }
+    }
+  }
+  .hover\:bg-indigo-400\/15 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: color-mix(in srgb, oklch(67.3% 0.182 276.935) 15%, transparent);
+        @supports (color: color-mix(in lab, red, red)) {
+          background-color: color-mix(in oklab, var(--color-indigo-400) 15%, transparent);
         }
       }
     }
@@ -1146,7 +1167,7 @@ header.flex {
 .mob-variation-hint {
   display: none !important;
 }
-.mob-contribute-btn, .mob-donate-btn, .mob-live-count {
+.mob-contribute-btn, .mob-donate-btn, .mob-discord-btn, .mob-live-count {
   display: none !important;
 }
 .palette-toolbox-spacer {
@@ -1177,7 +1198,7 @@ header.flex {
     overflow: hidden !important;
     display: block !important;
   }
-  .brand-tagline, .brand-contribute {
+  .brand-tagline, .brand-contribute, .brand-discord {
     display: none !important;
   }
   body > div.app-shell header, header.flex {
@@ -1237,7 +1258,7 @@ header.flex {
   .mob-coords-chip {
     display: inline-flex !important;
   }
-  .mob-contribute-btn, .mob-donate-btn, .mob-live-count {
+  .mob-contribute-btn, .mob-donate-btn, .mob-discord-btn, .mob-live-count {
     display: inline-flex !important;
     white-space: nowrap !important;
     flex-shrink: 0 !important;
@@ -1401,6 +1422,7 @@ header.flex {
     position: fixed !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 15px) !important;
     left: 50% !important;
+    transform: translateX(-50%) !important;
     width: auto !important;
     min-width: 150px !important;
     max-width: calc(100vw - 78px) !important;
@@ -1509,11 +1531,11 @@ header.flex {
     align-items: center !important;
     justify-content: center !important;
     gap: 5px !important;
-    padding: 6px 36px 6px 36px !important;
+    padding: 6px 10px 6px 62px !important;
     box-sizing: border-box !important;
     border-radius: 0 !important;
     border: none !important;
-    border-top: none !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
     background: rgba(58, 58, 59, 1) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
@@ -1540,8 +1562,8 @@ header.flex {
     display: block !important;
     width: 100% !important;
     text-align: center !important;
-    font-size: 0.68rem !important;
-    color: rgba(210,212,216,0.92) !important;
+    font-size: 0.63rem !important;
+    color: rgba(179,180,182,0.7) !important;
     line-height: 1 !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -1636,7 +1658,7 @@ header.flex {
     height: 100dvh;
     overflow: hidden;
   }
-  .brand-tagline, .brand-contribute {
+  .brand-tagline, .brand-contribute, .brand-discord {
     display: none !important;
   }
   header.flex {

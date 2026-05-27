@@ -239,6 +239,7 @@ header.flex { will-change: transform; }
 /* Mobile contribute + live count — hidden on desktop */
 .mob-contribute-btn,
 .mob-donate-btn,
+.mob-discord-btn,
 .mob-live-count { display: none !important; }
 /* Toolbox spacer in palette — hidden on desktop */
 .palette-toolbox-spacer { display: none !important; }
@@ -279,7 +280,8 @@ header.flex { will-change: transform; }
 
   /* Hide decorative desktop-only brand items */
   .brand-tagline,
-  .brand-contribute { display: none !important; }
+  .brand-contribute,
+  .brand-discord { display: none !important; }
 
   /* ── Topbar — fixed strip at the very top ──────────────────── */
   body > div.app-shell header,
@@ -334,6 +336,7 @@ header.flex { will-change: transform; }
   .mob-coords-chip  { display: inline-flex !important; }
   .mob-contribute-btn,
   .mob-donate-btn,
+  .mob-discord-btn,
   .mob-live-count {
     display: inline-flex !important;
     white-space: nowrap !important;
@@ -696,7 +699,7 @@ header.flex { will-change: transform; }
     overflow: hidden;
   }
 
-  .brand-tagline, .brand-contribute { display: none !important; }
+  .brand-tagline, .brand-contribute, .brand-discord { display: none !important; }
 
   header.flex {
     position: fixed;
