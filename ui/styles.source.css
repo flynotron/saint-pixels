@@ -481,7 +481,6 @@ header.flex { will-change: transform; }
     position: fixed !important;
     bottom: calc(var(--mob-bottom-total) + env(safe-area-inset-bottom, 0px) + 15px) !important;
     left: 50% !important;
-    transform: translateX(-50%) !important;
     width: auto !important;
     min-width: 150px !important;
     max-width: calc(100vw - 78px) !important;
