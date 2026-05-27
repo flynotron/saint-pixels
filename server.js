@@ -214,7 +214,7 @@ initializeSSE(app, db, sseConnectionGuard);
 // ── Register ──────────────────────────────────────────────────────────────────
 app.post('/api/register', registerLimiter, requireCaptcha, async (req, res) => {
   const { username, password, email } = req.body || {};
-  const ip = safeIp(req);
+  const ip = req.ip || safeIp(req) || 'unknown';
 
   if (!username || !password)
     return res.status(400).json({ error: 'Username and password are required.' });
