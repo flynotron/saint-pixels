@@ -70,7 +70,7 @@ class PlacePixel {
 
     return res.json({ success: true });
   }
-    /**
+  /**
    * POST /api/erase — erase a pixel (stored as color='erase' sentinel)
    * Uses the same cooldown as a regular pixel placement.
    */
@@ -93,10 +93,19 @@ class PlacePixel {
       try {
         const { x, y } = req.body;
         if (typeof x === 'number' && typeof y === 'number') {
+          // 1. Log the erase action in the raw pixel event stream
           _db.prepare(`
             INSERT INTO pixels (username, x, y, color, placed_at)
             VALUES (?, ?, ?, 'erase', ?)
           `).run(session.username, x, y, Date.now());
+
+          // 2. Increment this player's pixel count for today to update the leaderboard
+          _db.prepare(`
+            INSERT INTO pixel_counts (username, day, count)
+            VALUES (?, ?, 1)
+            ON CONFLICT(username, day)
+            DO UPDATE SET count = count + 1
+          `).run(session.username, getDayUTC4());
         }
       } catch (err) {
         console.error('Failed to store erase:', err);
