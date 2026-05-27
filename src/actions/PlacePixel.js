@@ -72,45 +72,6 @@ class PlacePixel {
   }
 
   /**
-   * POST /api/erase — erase a pixel (stored as color='erase' sentinel)
-   * Uses the same cooldown as a regular pixel placement.
-   */
-  static erase(req, res) {
-    const session = getSession(req);
-    if (!session) return res.status(401).json({ error: 'Unauthorized' });
-
-    const cooldownLeft = getCooldown(session.username);
-    if (cooldownLeft > 0) {
-      return res.status(429).json({ error: 'Cooldown active. Please wait.', cooldown: cooldownLeft });
-    }
-
-    resetCooldown(session.username);
-    // Record this erase against the IP for anti-cheat enforcement
-    recordIp(req.ip || req.socket?.remoteAddress || 'unknown', session.username);
-
-    // Store erase as a pixel with sentinel color 'erase'
-    // When replayed on init, this will clear the pixel correctly
-    if (_db) {
-      try {
-        const { x, y } = req.body;
-        if (typeof x === 'number' && typeof y === 'number') {
-          _db.prepare(`
-            INSERT INTO pixels (username, x, y, color, placed_at)
-            VALUES (?, ?, ?, 'erase', ?)
-          `).run(session.username, x, y, Date.now());
-        }
-      } catch (err) {
-        console.error('Failed to store erase:', err);
-      }
-    }
-
-    // Broadcast erase event to all SSE clients
-    _broadcast({ type: 'erase', x: req.body.x, y: req.body.y, user: session.username });
-
-    return res.json({ success: true });
-  }
-
-  /**
    * Inject the database instance (called from initializeActions)
    * @param {Database} db
    */
