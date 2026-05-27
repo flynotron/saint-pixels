@@ -6,13 +6,24 @@
  *   - db             better-sqlite3 Database (optional — can also be set via setDb)
  *   - guardMiddleware Optional Express middleware to run before accepting the
  *                     SSE connection (e.g. sseConnectionGuard in server.js)
+ *
+ * Security hardening (v2):
+ *  - Initial pixel SELECT now has a hard LIMIT (500 000 rows) to prevent an
+ *    unbounded full-table scan being triggered by rapid connect/disconnect cycling.
  */
+
+'use strict';
 
 /** @type {Set<import('http').ServerResponse>} */
 const clients = new Set();
 
 /** @type {import('better-sqlite3').Database|null} */
 let _db = null;
+
+// Hard ceiling on the number of pixel rows sent to a new client.
+// A 1920×1080 canvas has 2 073 600 cells; 500 000 covers the typical
+// active region while bounding the per-connect query cost.
+const PIXEL_INIT_LIMIT = 500_000;
 
 /**
  * Inject the database so new SSE connections can receive existing pixel history.
@@ -65,12 +76,14 @@ function initializeSSE(app, db, guardMiddleware) {
     clients.add(res);
     broadcastCount();
 
-    // Send all existing pixels on connect so the new client can paint immediately
+    // Send existing pixels on connect so the new client can paint immediately.
+    // LIMIT caps the query cost — prevents an unbounded SELECT being triggered
+    // by rapid connect/disconnect cycling (reconnect-flood DDoS vector).
     if (_db) {
       try {
         const pixels = _db.prepare(
-          'SELECT username, x, y, color FROM pixels ORDER BY placed_at ASC'
-        ).all();
+          'SELECT username, x, y, color FROM pixels ORDER BY placed_at ASC LIMIT ?'
+        ).all(PIXEL_INIT_LIMIT);
         if (pixels.length > 0) {
           res.write(`data: ${JSON.stringify({ type: 'init', pixels })}\n\n`);
         }

@@ -43,7 +43,7 @@ app.use(helmet({
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 
-// ── Database ──────────────────────────────────────────────────────────────────
+// ── Database & Helpers ────────────────────────────────────────────────────────
 const dbFile = process.env.DATABASE_PATH || path.join(__dirname, 'database.sqlite');
 const db = new Database(dbFile);
 
@@ -56,6 +56,11 @@ const { sendVerificationEmail }  = require('./src/helpers/mailer.js');
 const { initializeActions }      = require('./src/setup/actions.js');
 const { initializeDatabase }     = require('./src/setup/database.js');
 const { initializeSSE, broadcastSSE, setDb: setSseDb } = require('./src/setup/sse.js');
+const { initializeChat }         = require('./src/setup/chat.js');
+const { localBypassMiddleware }  = require('./src/helpers/localBypass.js'); // <-- Added
+
+// ── Local Bypass Middleware ───────────────────────────────────────────────────
+app.use(localBypassMiddleware); // <-- Activates req.localBypassUser if valid
 
 // ── Static files ──────────────────────────────────────────────────────────────
 const fs        = require('fs');
@@ -65,6 +70,12 @@ app.get('/', (req, res) => {
   try {
     let html = fs.readFileSync(indexPath, 'utf8');
     html = html.replace('__VITE_HCAPTCHA_SITEKEY__', process.env.HCAPTCHA_SITEKEY || '');
+
+    // Inject bypass flag if middleware detected a private IP + MOBILE_DEBUG=true
+    if (req.localBypassUser) {
+      html = html.replace('<html lang="en">', '<html lang="en" data-local-bypass="1">');
+    }
+
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
   } catch (err) {
@@ -91,9 +102,6 @@ setAntiCheatDb(db);
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  RATE LIMITERS & DDOS PROTECTION
-//
-//  All custom keyGenerators use safeIp(req) which calls ipKeyGenerator(req)
-//  so IPv6 addresses are properly normalised — avoids ERR_ERL_KEY_GEN_IPV6.
 // ══════════════════════════════════════════════════════════════════════════════
 
 /** IPv6-safe IP string for use inside custom keyGenerators. */
@@ -150,7 +158,6 @@ const resendLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    // Key by authenticated username when available, fall back to IPv6-safe IP
     const auth = req.headers.authorization || '';
     const [, token] = auth.split(' ');
     if (token) {
@@ -184,6 +191,31 @@ const paletteLimiter = rateLimit({
   keyGenerator: (req) => safeIp(req),
 });
 
+// ── Chat limiter: 30 messages / min, keyed by session token when available ────
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const auth = req.headers.authorization || '';
+    const [, token] = auth.split(' ');
+    if (token) return `chat:token:${token}`;
+    return `chat:ip:${safeIp(req)}`;
+  },
+  message: { error: 'Sending too fast. Please slow down.' },
+});
+
+// ── SSE reconnect-rate limiter: max 20 new connections / 60 s / IP ───────────
+const sseLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => safeIp(req),
+  message: { error: 'Too many stream reconnects. Please wait a moment.' },
+});
+
 // ── SSE connection guard: max 10 concurrent SSE connections per IP ────────────
 const sseConnectionsPerIp = new Map();
 const SSE_MAX_PER_IP = 10;
@@ -205,7 +237,11 @@ function sseConnectionGuard(req, res, next) {
 
 // ── Actions & SSE ─────────────────────────────────────────────────────────────
 initializeActions(app, db, pixelLimiter, broadcastSSE);
+app.use('/api/stream', sseLimiter);
 initializeSSE(app, db, sseConnectionGuard);
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+initializeChat(app, db, broadcastSSE, chatLimiter);
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  API ROUTES
@@ -382,6 +418,11 @@ app.post('/api/reset-password', async (req, res) => {
 
 // ── Session ───────────────────────────────────────────────────────────────────
 app.get('/api/me', (req, res) => {
+  // If local bypass is engaged, immediately return the anonymous user
+  if (req.localBypassUser) {
+    return res.json({ username: req.localBypassUser, emailVerified: true });
+  }
+
   const session = getSession(req);
   if (!session) return res.status(401).json({ error: 'Not authenticated.' });
   const row = db.prepare('SELECT email_verified FROM accounts WHERE username = ?').get(session.username);

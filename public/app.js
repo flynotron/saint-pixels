@@ -121,6 +121,9 @@ function connectSSE() {
       } else if (event.type === 'clients') {
         // Update live player count from server SSE (authoritative count)
         dispatchStateChange({ liveCount: event.count });
+      } else if (event.type === 'chat') {
+        // Forward chat messages to the chat panel (chat.js)
+        if (typeof window.__chatIncoming === 'function') window.__chatIncoming(event);
       }
     } catch { /* ignore malformed events */ }
   };
@@ -151,7 +154,7 @@ let dragStart = null;
 let gridEnabled = true;
 let tool = 'brush';
 /** Set to true when the eyedropper fires on mobile so the same touchend that
- *  triggered the pick doesn't also place a pixel after switching to brush. */
+ * triggered the pick doesn't also place a pixel after switching to brush. */
 let _eyedropperJustFired = false;
 let color = '#000000';
 let pixelSize = 1;
@@ -300,12 +303,17 @@ async function updateAuthState() {
       // DB confirms verified — keep the flag in sync
       localStorage.setItem(EMAIL_VERIFIED_KEY, '1');
     }
+    // Expose auth state for chat.js
+    window.__username  = data.username;
+    window.__authToken = token;
     dispatchStateChange({ currentUser: data.username, emailVerified });
     document.body.classList.remove('auth-open');
     authMessage.textContent = '';
     updateCooldownLabel();
   } catch (error) {
     currentUser = null;
+    window.__username  = null;
+    window.__authToken = null;
     dispatchStateChange({ currentUser: null, emailVerified: false });
     document.body.classList.add('auth-open');
     authUsername.focus();
@@ -319,6 +327,9 @@ function showAuthMessage(message, isError = true) {
 
 function setCurrentUser(username, emailVerified = false) {
   currentUser = username;
+  // Expose auth state for chat.js
+  window.__username  = username;
+  window.__authToken = getStoredToken();
   dispatchStateChange({ currentUser: username, emailVerified: !!emailVerified });
   document.body.classList.remove('auth-open');
   showAuthMessage('');
@@ -336,6 +347,9 @@ async function handleLogout() {
   }
   clearToken();
   currentUser = null;
+  // Clear auth globals used by chat.js
+  window.__username  = null;
+  window.__authToken = null;
   dispatchStateChange({ currentUser: null });
   showAuthMessage('Logged out', false);
   updateCooldownLabel();
@@ -638,11 +652,25 @@ function getCanvasCoords(clientX, clientY) {
   // offsetX/Y are always whole numbers (rounded at every write site), so
   // tap-to-place always lands on the same cell the cursor highlight is drawn on.
   const rect = viewport.getBoundingClientRect();
-  // offsetX/Y are always integers — no rounding needed
-  const ox = offsetX;
-  const oy = offsetY;
-  const x = (clientX - rect.left - ox) / scale;
-  const y = (clientY - rect.top - oy) / scale;
+
+  // When the user pinch-zooms the *browser* (not the in-app zoom), the Visual
+  // Viewport API reports a scale != 1.  touch.clientX/clientY are given in
+  // *layout* CSS pixels (unscaled), but getBoundingClientRect() also returns
+  // layout pixels, so they cancel correctly.  However offsetX/offsetY are
+  // maintained in *visual* CSS pixels (the coordinate space the canvas is
+  // drawn in), so we must divide by the visual viewport scale to convert
+  // them back to layout pixels before subtracting.
+  //
+  // On browsers that don't support visualViewport the scale is 1 and this
+  // reduces to the original formula.
+  const vvScale = (window.visualViewport && window.visualViewport.scale) || 1;
+
+  const ox = offsetX / vvScale;
+  const oy = offsetY / vvScale;
+  const s  = scale   / vvScale;
+
+  const x = (clientX - rect.left - ox) / s;
+  const y = (clientY - rect.top  - oy) / s;
   return {
     x: clamp(Math.floor(x), 0, BOARD_WIDTH - 1),
     y: clamp(Math.floor(y), 0, BOARD_HEIGHT - 1)
@@ -1529,6 +1557,16 @@ function resizeViewport() {
 }
 
 window.addEventListener('resize', resizeViewport);
+
+// When the user pinch-zooms the *browser* (not the in-app zoom), the Visual
+// Viewport fires resize and scroll events.  We re-run resizeViewport so that
+// canvas.width/height and offsetX/offsetY stay consistent with the new scale.
+// Without this, getCanvasCoords works in a stale coordinate space and taps
+// land on the wrong pixel.
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', resizeViewport);
+  window.visualViewport.addEventListener('scroll', resizeViewport);
+}
 canvas.addEventListener('mousedown', event => {
   startAction(event);
 });
@@ -1538,7 +1576,7 @@ canvas.addEventListener('mousemove', event => {
   lastPointerClientY = event.clientY;
   
   if (isPanning) {
-    handlePanMove(event); // <--- Make sure this says handlePanMove
+    handlePanMove(event); 
     return;
   }
 
@@ -1559,7 +1597,7 @@ canvas.addEventListener('mousemove', event => {
 
 canvas.addEventListener('mouseup', event => {
   if (isPanning) {
-    handlePanEnd(); // <--- Make sure this says handlePanEnd
+    handlePanEnd(); 
     return;
   }
   stopAction(event);
@@ -1787,6 +1825,15 @@ authUsername.addEventListener('keydown', event => {
 });
 
 document.addEventListener('keydown', event => {
+  if (event.key === 'Shift') {
+    canvas.classList.add('shift-pan');
+  }
+
+  const target = event.target;
+  // Let the browser handle standard text typing naturally 
+  if (target.closest?.('input, textarea, select')) return;
+  // Don't steal Enter from focused toolbar/auth buttons (activation uses Enter).
+  if (target.closest?.('button') && event.key === 'Enter') return;
 
   switch (event.key) {
     case 'w':
@@ -1801,25 +1848,14 @@ document.addEventListener('keydown', event => {
     case '1': setTool('brush'); break;
     case '2': setTool('eraser'); break;
     case '3': setTool('eyedropper'); break;
-    case '4': setTool('hand'); break; // NEW
-    case 'g': gridEnabled = !gridEnabled; toggleGridBtn.classList.toggle('active', gridEnabled); redraw(); break;
-  }
+    case '4': setTool('hand'); break; 
+    case 'g': 
+    case 'G': 
+      gridEnabled = !gridEnabled; 
+      toggleGridBtn.classList.toggle('active', gridEnabled); 
+      redraw(); 
+      break;
 
-  if (event.key === 'Shift') {
-    canvas.classList.add('shift-pan');
-  }
-
-  const target = event.target;
-  if (target.closest?.('input, textarea, select')) return;
-  // Don't steal Enter from focused toolbar/auth buttons (activation uses Enter).
-  if (target.closest?.('button') && event.key === 'Enter') return;
-
-  switch (event.key) {
-    case '1': setTool('brush'); break;
-    case '2': setTool('eraser'); break;
-    case '3': setTool('eyedropper'); break;
-    case 'g': gridEnabled = !gridEnabled; toggleGridBtn.classList.toggle('active', gridEnabled); redraw(); break;
-    // 'c' key for clear removed
     case 'Enter':
       event.preventDefault();
       placeFromKeyboard();
@@ -1866,13 +1902,45 @@ window.addEventListener('beforeunload', () => {
 });
 
 /**
- * Returns true when running on a genuine localhost origin (loopback only).
- * LAN IPs (e.g. 192.168.x.x) are NOT treated as local dev — they may be
- * accessed by other users and must go through the full auth + captcha flow.
+ * Returns true when the mobileDebug bypass should be active on the client.
+ *
+ * Two conditions must BOTH be true:
+ * 1. The server injected data-local-bypass="1" on <html> — this only
+ * happens when MOBILE_DEBUG=true is set in .env AND the request came
+ * from a private/loopback IP.  Without the server flag this is always
+ * false, so the bypass is completely inert for public users.
+ * 2. The browser hostname is a loopback or private-network address.
+ * This double-check prevents a cached/CDN copy of the page from
+ * accidentally activating the bypass on a public host.
+ *
+ * The original localhost-only check is preserved as the fast path.
  */
 function isLocalDev() {
   const { hostname } = window.location;
-  return hostname === 'localhost' || hostname === '127.0.0.1';
+
+  // Fast path: genuine loopback (original behaviour, always allowed)
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+
+  // mobileDebug path: LAN IP + server confirmed bypass is active
+  const serverBypass = document.documentElement.dataset.localBypass === '1';
+  if (!serverBypass) return false;
+
+  // Verify the hostname is actually a private-network address
+  // (guards against a stale cached page reaching a public server)
+  const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [, a, b] = ipv4.map(Number);
+    return (
+      a === 10 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168)
+    );
+  }
+
+  // IPv6 loopback / link-local
+  if (hostname === '::1' || /^\[?fe80:/i.test(hostname)) return true;
+
+  return false;
 }
 
 window.addEventListener('load', () => {
@@ -1883,11 +1951,36 @@ window.addEventListener('load', () => {
   // 2. Fetch server data asynchronously in the background
   initPalette();
 
-  // On local dev origins skip the login overlay entirely — no token needed,
-  // no hCaptcha needed.  The server already accepts 'dev-bypass' as the
-  // captcha token when HCAPTCHA_SECRET is unset.
+  // On local dev / mobileDebug origins skip the login overlay entirely.
+  // For genuine localhost we use the hardcoded 'dev' username (no network
+  // round-trip needed).  For LAN IPs we call /api/me so the server can
+  // return the real anon-<octet> username it assigned via localBypassMiddleware.
   if (isLocalDev()) {
-    setCurrentUser('dev', true);   // marks user as logged-in, hides auth overlay
+    const isLoopback = (() => {
+      const h = window.location.hostname;
+      return h === 'localhost' || h === '127.0.0.1' || h === '::1';
+    })();
+
+    if (isLoopback) {
+      // Pure localhost — no token, no network call needed
+      setCurrentUser('dev', true);
+    } else {
+      // LAN IP — ask the server for the assigned anon username
+      fetch('/api/me')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && data.username) {
+            setCurrentUser(data.username, true);
+          } else {
+            // Fallback: derive username from hostname last octet
+            const parts = window.location.hostname.split('.');
+            setCurrentUser('anon-' + parts[parts.length - 1], true);
+          }
+        })
+        .catch(() => {
+          setCurrentUser('anon-local', true);
+        });
+    }
   } else {
     updateAuthState();
   }
@@ -2205,9 +2298,15 @@ viewport.addEventListener("touchend", (e) => {
      if (_eyedropperJustFired) { _eyedropperJustFired = false; return; }
      const touch = e.changedTouches[0];
      // iOS reports clientY at the TOP of the contact ellipse, not its center.
-     // Adding radiusY (half the vertical touch diameter) corrects the perceived
-     // tap position so the pixel lands where the majority of the finger was.
-     const radiusY = touch.radiusY || 0;
+     // Adding half the vertical touch diameter corrects the perceived tap
+     // position so the pixel lands where the majority of the finger was.
+     //
+     // touch.radiusY is in *physical* pixels on some browsers (notably Chrome
+     // on Android) and in CSS pixels on others (Safari/iOS).  Dividing by
+     // devicePixelRatio normalises it to CSS pixels in both cases.  When DPR
+     // is 1 (desktop) this is a no-op.
+     const dpr = window.devicePixelRatio || 1;
+     const radiusY = (touch.radiusY || 0) / dpr;
      const coords = getCanvasCoords(touch.clientX, touch.clientY + radiusY);
      applyToolAtCell(coords.x, coords.y);
   }
@@ -2445,6 +2544,11 @@ viewport.addEventListener("touchend", (e) => {
     }, delay);
   }
   scheduleReset();
+
+  // ── Expose openProfileModal globally so chat.js can open profiles on username click
+  window.__openProfile = function (username) {
+    openProfileModal(username);
+  };
 })();
 
 // ── Password visibility toggle (auth form) ─────────────────────────────────

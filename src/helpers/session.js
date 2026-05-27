@@ -49,10 +49,24 @@ function closeSession(token) {
 /**
  * Look up a valid (non-expired) session from a request.
  * Returns { username, created_at } or null.
+ *
+ * When the mobileDebug bypass is active and the request comes from a
+ * private/loopback IP, localBypassMiddleware will have already set
+ * req.localBypassUser.  In that case we return a synthetic session
+ * immediately — no DB lookup, no token required.
+ *
  * @param {import('express').Request} req
  * @returns {{ username: string, created_at: number } | null}
  */
 function getSession(req) {
+  // ── mobileDebug bypass ───────────────────────────────────────────────────
+  // localBypassMiddleware sets req.localBypassUser for private-network IPs
+  // when MOBILE_DEBUG=true.  Return a synthetic session so all downstream
+  // handlers (PlacePixel, Chat, /api/me, etc.) see an authenticated user.
+  if (req && req.localBypassUser) {
+    return { username: req.localBypassUser, created_at: Date.now() };
+  }
+
   const auth = req.headers.authorization || '';
   const [type, token] = auth.split(' ');
   if (type !== 'Bearer' || !token) return null;

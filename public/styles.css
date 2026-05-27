@@ -2262,6 +2262,11 @@ header.flex {
   .lb-toggle {
     height: 52px;
   }
+  /* chat toggle tab — must match lb-toggle height on mobile */
+  .chat-toggle-btn {
+    height: 52px;
+    width: var(--lb-toggle-w, 24px);
+  }
   .lb-filters {
     gap: 3px;
     padding: 6px 10px;

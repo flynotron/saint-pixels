@@ -4,13 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Saint-Pixels</title>
-  <!-- Tailwind CSS compiled into styles.css — no CDN needed -->
-  <!-- Alpine.js -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <!-- hCaptcha -->
   <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
   <script type="module" src="/app.js"></script>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/chat.css">
 </head>
 <body
   class="h-screen overflow-hidden text-slate-100 font-sans flex items-stretch" style="background:#2e2e2f;"
@@ -33,7 +31,6 @@
   @sp-state-change.window="syncFromEngine($event.detail)"
 >
 
-  <!-- ══════════════════ AUTH OVERLAY ══════════════════ -->
   <div
     class="fixed inset-0 z-50 bg-black/75 grid place-items-center"
     id="authOverlay"
@@ -72,12 +69,10 @@
             aria-label="Toggle password visibility"
             class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-100 transition-colors p-1"
           >
-            <!-- open-eye (shown by default) -->
             <svg id="eyeIconOpen" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
               <circle cx="12" cy="12" r="3"/>
             </svg>
-            <!-- closed-eye (hidden by default) -->
             <svg id="eyeIconClosed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;">
               <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
               <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
@@ -87,12 +82,10 @@
         </div>
       </label>
 
-      <!-- Forgot password link — login mode only -->
       <div id="forgotPasswordRow" class="text-right -mt-2">
         <button type="button" id="forgotPasswordBtn" class="text-sky-400 text-sm hover:underline">Forgot password?</button>
       </div>
 
-      <!-- Mode toggle tabs -->
       <div class="flex gap-1 p-1 rounded-2xl bg-black/20 border border-white/10" id="authModeTabs">
         <button
           id="authTabLogin"
@@ -107,7 +100,6 @@
         >Create account</button>
       </div>
 
-      <!-- Email field — shown only in register mode -->
       <label class="grid gap-2 text-slate-100" id="authEmailLabel" style="display:none;">
         Email address
         <input
@@ -121,7 +113,6 @@
         <span class="text-slate-400 text-xs">Used to verify your account. Not shown publicly.</span>
       </label>
 
-      <!-- hCaptcha widget — sitekey injected by Vite at build time -->
       <div id="authCaptchaWrapper">
         <div
           id="authCaptcha"
@@ -140,7 +131,6 @@
         >Login</button>
       </div>
 
-      <!-- Hidden legacy buttons kept for JS compatibility -->
       <button id="authLogin"    type="button" style="display:none;"></button>
       <button id="authRegister" type="button" style="display:none;"></button>
 
@@ -166,16 +156,12 @@
     <span id="resendMsg" class="text-amber-800 text-xs"></span>
   </div>
 
-  <!-- ══════════════════ APP SHELL ══════════════════ -->
   <div class="app-shell w-full flex flex-col h-screen overflow-hidden px-6 py-5">
 
-    <!-- TOPBAR -->
     <header class="flex flex-nowrap gap-3 justify-between items-center px-4 py-2.5 border border-white/10 rounded-3xl bg-[rgba(58,58,59,0.98)] shadow-xl overflow-x-auto overflow-y-hidden scrollbar-thin min-h-[54px] shrink-0">
 
-      <!-- Brand -->
       <div class="flex flex-row flex-nowrap items-center gap-1.5 shrink-0 min-w-0">
         <h1 class="m-0 text-[clamp(1.4rem,2vw,2rem)] leading-none font-bold">Saint-Pixels</h1>
-        <!-- Drag handle — sits right next to the title on all screen sizes -->
         <div class="topbar-drag-handle" id="topbar-drag-handle" title="Drag to scroll">
           <svg width="32" height="16" viewBox="0 0 32 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events:none;display:block;">
             <polyline points="10,3 4,8 10,13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
@@ -184,7 +170,6 @@
             <line x1="28" y1="8" x2="19" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
-        <!-- Mobile-only: Contribute + Donate + live count (hidden on desktop via CSS) -->
         <a
           class="mob-contribute-btn px-2 py-1 rounded-lg border border-white/10 bg-white/5 text-slate-100 no-underline font-semibold text-xs inline-flex items-center gap-1 hover:bg-sky-400/15 hover:border-sky-400/80 transition-all"
           href="https://github.com/flynotron/saint-pixels"
@@ -222,7 +207,6 @@
           target="_blank"
           rel="noopener"
         >Contribute</a>
-        <!-- ADD YOUR DONATE LINK HERE — replace href="#" with your donation URL (e.g. https://ko-fi.com/yourname) -->
         <a
           class="brand-discord px-2 py-1.5 rounded-xl border border-white/10 bg-white/5 text-slate-100 no-underline font-semibold text-sm inline-flex items-center gap-1.5 hover:-translate-y-px hover:bg-indigo-400/15 hover:border-indigo-400/80 transition-all"
           href="https://discord.gg/Y2u3Zx389B"
@@ -241,10 +225,8 @@
         <span class="text-slate-400 text-sm whitespace-nowrap brand-tagline">1920×1080 Live Canvas</span>
       </div>
 
-      <!-- Status chips -->
       <div class="flex flex-nowrap items-center justify-end gap-2 shrink-0 min-w-0" role="group" aria-label="Session status">
 
-        <!-- User chip -->
         <div class="inline-flex flex-row items-center gap-2.5 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap">
           <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">Username</span>
           <strong id="current-user" class="text-[0.75rem] font-semibold" x-text="currentUser || 'Guest'"></strong>
@@ -256,19 +238,16 @@
           >Logout</button>
         </div>
 
-        <!-- Live players -->
         <div class="inline-flex flex-row items-center gap-2 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap">
           <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">Live Players</span>
           <strong id="live-count" class="text-[0.75rem] font-semibold" x-text="liveCount"></strong>
         </div>
 
-        <!-- Current tool -->
         <div class="inline-flex flex-row items-center gap-2 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap">
           <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">Current Tool</span>
           <strong id="current-tool" class="text-[0.75rem] font-semibold" x-text="currentTool"></strong>
         </div>
 
-        <!-- Current color -->
         <div class="inline-flex flex-row items-center gap-2 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap">
           <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">Current Color</span>
           <span
@@ -279,13 +258,11 @@
           ></span>
         </div>
 
-        <!-- Zoom -->
         <div class="inline-flex flex-row items-center gap-2 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap">
           <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">Zoom</span>
           <strong id="zoom-level" class="text-[0.75rem] font-semibold" x-text="zoomLevel + '%'"></strong>
         </div>
 
-        <!-- Coordinates (visible on mobile) -->
         <div class="inline-flex flex-row items-center gap-2 px-3 py-1.5 bg-black/20 rounded-full border border-white/10 whitespace-nowrap mob-coords-chip">
           <span class="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400">XY</span>
           <strong id="coord-topbar" class="text-[0.75rem] font-semibold font-mono">—</strong>
@@ -294,13 +271,10 @@
       </div>
     </header>
 
-    <!-- MAIN GRID -->
     <main class="grid gap-5 mt-3 flex-1 min-h-0 overflow-hidden" style="grid-template-columns: 340px minmax(0,1fr)">
 
-      <!-- CONTROLS PANEL -->
       <aside class="flex flex-col gap-3 p-4 border border-white/10 rounded-3xl bg-[rgba(47,47,48,0.98)] shadow-xl overflow-x-hidden overflow-y-auto min-h-0">
 
-        <!-- Tools -->
         <section class="mb-0">
           <h2 class="m-0 mb-2 text-[0.95rem] font-semibold">Tools</h2>
           <div class="grid grid-cols-2 gap-1.5 items-stretch tool-list">
@@ -312,7 +286,6 @@
           </div>
         </section>
 
-        <!-- Palette -->
         <section class="mb-0">
           <h2 class="m-0 mb-2 text-[0.95rem] font-semibold">Palette</h2>
           <div class="grid gap-1.5 palette" id="palette" style="grid-template-columns:repeat(6,minmax(0,1fr))"></div>
@@ -324,7 +297,6 @@
           </p>
         </section>
 
-        <!-- Help -->
         <section class="mb-0">
           <h2 class="m-0 mb-2 text-[0.95rem] font-semibold">Help</h2>
           <ul class="grid gap-1.5 p-0 m-0 list-none text-slate-300 text-[0.9rem] help-list">
@@ -342,10 +314,8 @@
 
       </aside>
 
-      <!-- CANVAS PANEL -->
       <section class="flex flex-col gap-2.5 p-4 border border-white/10 rounded-3xl bg-[rgba(58,58,59,0.98)] shadow-xl overflow-hidden min-h-0">
 
-        <!-- Canvas toolbar -->
         <div class="flex flex-wrap items-center gap-2.5 canvas-toolbar">
           <label class="inline-flex items-center gap-2 text-slate-100">
             Zoom
@@ -361,7 +331,6 @@
           </div>
         </div>
 
-        <!-- Viewport wrapper -->
         <div class="viewport-wrapper w-full flex-1 min-h-0 border border-white/10 overflow-hidden relative flex"
           style="background-color:#2e2e2f;background-image:radial-gradient(circle,rgba(255,255,255,0.12) 1px,transparent 1px);background-size:24px 24px;">
 
@@ -384,7 +353,6 @@
             </button>
           </div>
 
-          <!-- Cooldown bar -->
           <div class="cooldown-bar pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-3.5 w-[min(360px,calc(100%-32px))] z-[4] flex flex-col items-stretch gap-1.5 px-3.5 py-2.5 rounded-2xl bg-[rgba(52,52,53,0.82)] border border-white/10 shadow-xl backdrop-blur-md"
             id="cooldownBar" role="status" aria-live="polite">
             <div class="h-2 rounded-full bg-white/10 overflow-hidden cooldown-bar__track">
@@ -395,7 +363,6 @@
 
         </div>
 
-        <!-- Footer / Spawn -->
         <div class="flex justify-between items-center gap-4 flex-wrap footer-panel">
           <div class="flex items-center gap-2 text-[0.9rem] spawn-container">
             <span>Spawn to Coordinates:</span>
@@ -414,14 +381,11 @@
       </section>
     </main>
   </div>
-</body>
-</html>
+
   <div id="lb-panel" class="lb-panel" aria-label="Leaderboard" role="complementary">
 
-    <!-- Body -->
     <div class="lb-body">
 
-      <!-- Profile strip -->
       <div class="lb-profile" id="lb-profile-strip" title="View your profile">
         <div class="lb-profile-avatar" id="lb-profile-avatar">?</div>
         <div class="lb-profile-info">
@@ -433,13 +397,11 @@
         </svg>
       </div>
 
-      <!-- Leaderboard header -->
       <div class="lb-header">
         <span class="lb-title">🏆 Leaderboard</span>
         <span id="lb-date" class="lb-date"></span>
       </div>
 
-      <!-- Period filters -->
       <div class="lb-filters" id="lb-filters">
         <button class="lb-filter-btn lb-filter-active" data-period="today">Today</button>
         <button class="lb-filter-btn" data-period="week">Week</button>
@@ -456,7 +418,6 @@
       <p class="lb-reset-note" id="lb-reset-note">Today resets at midnight · UTC−4</p>
     </div>
 
-    <!-- Toggle tab -->
     <button id="lb-toggle" class="lb-toggle" aria-label="Toggle leaderboard" title="Leaderboard">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="9,5 16,12 9,19"/>
@@ -465,7 +426,11 @@
 
   </div>
 
-  <!-- ══════════════════ RESET PASSWORD MODAL ══════════════════ -->
+  <button id="chat-toggle-btn" class="chat-toggle-btn" aria-label="Toggle global chat" title="Global Chat">
+    💬
+    <span id="chat-unread" class="chat-unread-badge"></span>
+  </button>
+
   <div
     id="resetPasswordOverlay"
     style="display:none;"
@@ -477,7 +442,6 @@
         <button type="button" id="resetModalClose" class="text-slate-400 hover:text-white transition-colors text-2xl leading-none">&times;</button>
       </div>
 
-      <!-- Step 1: enter email -->
       <div id="resetStep1">
         <p class="text-slate-400 text-sm m-0 mb-4">Enter your account email and we'll send you a reset link.</p>
         <label class="grid gap-2 text-slate-100 text-sm">
@@ -496,7 +460,6 @@
         >Send reset link</button>
       </div>
 
-      <!-- Step 2: enter new password (token arrives via URL ?resetToken=…) -->
       <div id="resetStep2" style="display:none;">
         <p class="text-slate-400 text-sm m-0 mb-4">Enter your new password below.</p>
         <label class="grid gap-2 text-slate-100 text-sm">
@@ -514,12 +477,10 @@
               aria-label="Toggle password visibility"
               class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-100 transition-colors p-1"
             >
-              <!-- open-eye (shown by default) -->
               <svg id="resetEyeIconOpen" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                 <circle cx="12" cy="12" r="3"/>
               </svg>
-              <!-- closed-eye (hidden by default) -->
               <svg id="resetEyeIconClosed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;">
                 <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                 <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
@@ -571,4 +532,28 @@
       <button class="pm-close" id="pm-close">Close</button>
     </div>
   </div>
+
+  <div id="chat-panel" role="complementary" aria-label="Global chat">
+    <div id="chat-header">
+      <span>Global Chat</span>
+      <div id="chat-header-actions">
+        <button id="chat-download-btn" data-tooltip="Download chat log" title="Download log">
+          ⬇ Log
+        </button>
+        <button id="chat-close-btn" aria-label="Close chat">✕</button>
+      </div>
+    </div>
+    <ul id="chat-messages" role="log" aria-live="polite" aria-label="Chat messages"></ul>
+    <div id="chat-form-wrapper">
+      <form id="chat-form" autocomplete="off">
+        <input id="chat-input" type="text" maxlength="200"
+               placeholder="Say something…" autocomplete="off" />
+        <button id="chat-send-btn" type="submit">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/chat.js"></script>
+
+</body>
 </html>
