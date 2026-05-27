@@ -572,6 +572,14 @@ function drawGridIfDirty() {
   drawGrid();
 }
 
+function toggleGrid() {
+  gridEnabled = !gridEnabled;
+  toggleGridBtn.classList.toggle('active', gridEnabled);
+  // Force a full grid redraw since gridEnabled changed
+  lastGridScale = null;
+  redraw();
+}
+
 let isRedrawPending = false;
 
 function redraw() {
@@ -1417,10 +1425,10 @@ function updateLiveCount(count) {
 }
 
 function startAction(event) {
-  if (event.button !== 0) return; // Only allow left-clicks
+  if (event.button === 2) return; // Disallow right-clicks
 
-  // If holding shift OR the active tool is 'hand', trigger panning
-  if (event.shiftKey || tool === 'hand') {
+  // If holding shift, middle mouse button OR the active tool is 'hand', trigger panning
+  if (event.shiftKey || event.button === 1 || tool === 'hand') {
     handlePanStart(event);
     return;
   }
@@ -1639,11 +1647,7 @@ zoomInput.addEventListener('input', event => {
 });
 
 toggleGridBtn.addEventListener('click', () => {
-  gridEnabled = !gridEnabled;
-  toggleGridBtn.classList.toggle('active', gridEnabled);
-  // Force a full grid redraw since gridEnabled changed
-  lastGridScale = null;
-  redraw();
+  toggleGrid();
 });
 
 // ensure UI reflects current grid state on load
@@ -1824,6 +1828,7 @@ authUsername.addEventListener('keydown', event => {
   }
 });
 
+// Keyboard shortcuts
 document.addEventListener('keydown', event => {
   if (event.key === 'Shift') {
     canvas.classList.add('shift-pan');
@@ -1857,18 +1862,30 @@ document.addEventListener('keydown', event => {
       break;
 
     case 'Enter':
-      event.preventDefault();
       placeFromKeyboard();
       break;
+    // Fullscreen
     case 'f':
     case 'F':
-      event.preventDefault();
       fullscreenBtn?.click();
       break;
-    case 'ArrowUp': event.preventDefault(); moveCursorFromArrow(0, -1, event); break;
-    case 'ArrowDown': event.preventDefault(); moveCursorFromArrow(0, 1, event); break;
-    case 'ArrowLeft': event.preventDefault(); moveCursorFromArrow(-1, 0, event); break;
-    case 'ArrowRight': event.preventDefault(); moveCursorFromArrow(1, 0, event); break;
+    // Arrow key movement
+    case 'ArrowUp':
+      moveCursorFromArrow(0, -1, event);
+      break;
+    case 'ArrowDown':
+      moveCursorFromArrow(0, 1, event);
+      break;
+    case 'ArrowLeft':
+      moveCursorFromArrow(-1, 0, event);
+      break;
+    case 'ArrowRight':
+      moveCursorFromArrow(1, 0, event);
+      break;
+    // Canvas panning
+    case 'Shift':
+      canvas.classList.add('shift-pan');
+      break;
   }
 });
 
