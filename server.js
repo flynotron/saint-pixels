@@ -404,37 +404,6 @@ app.get('/api/palette', paletteLimiter, (req, res) => {
   }
 });
 
-// ── Debug routes (dev / staging only) ────────────────────────────────────────
-if (process.env.NODE_ENV !== 'production') {
-  app.get('/api/debug/auth', (req, res) => {
-    const { username } = req.query;
-    if (!username) {
-      try {
-        const accounts = db.prepare('SELECT id, username, email, email_verified, ip, created_at, SUBSTR(password,1,29) AS hash_prefix FROM accounts ORDER BY id ASC').all();
-        const sessions = db.prepare('SELECT username, COUNT(*) AS count FROM sessions WHERE expires_at > ? GROUP BY username').all(Date.now());
-        return res.json({ note: 'DEV MODE', accounts, active_sessions: sessions });
-      } catch (err) { return res.status(500).json({ error: err.message }); }
-    }
-    try {
-      const row = db.prepare('SELECT id, username, email, email_verified, ip, created_at, password FROM accounts WHERE username = ?').get(username);
-      if (!row) return res.json({ found: false, username });
-      const { password: hash, ...safeRow } = row;
-      return res.json({ found: true, account: { ...safeRow, hash_prefix: hash.slice(0,29), hash_length: hash.length, hash_starts_with_2b: hash.startsWith('$2b$') } });
-    } catch (err) { return res.status(500).json({ error: err.message }); }
-  });
-
-  app.post('/api/debug/auth', async (req, res) => {
-    const { username, password } = req.body || {};
-    if (!username || !password) return res.status(400).json({ error: 'Provide { username, password }.' });
-    try {
-      const row = db.prepare('SELECT username, password, email_verified FROM accounts WHERE username = ?').get(username);
-      if (!row) return res.json({ result: 'FAIL', reason: 'username_not_found' });
-      const match = await verifyPassword(password, row.password);
-      return res.json({ result: match ? 'OK' : 'FAIL', email_verified: !!row.email_verified });
-    } catch (err) { return res.status(500).json({ error: err.message }); }
-  });
-}
-
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).send('Not found'));
 
