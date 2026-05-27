@@ -2434,10 +2434,22 @@ viewport.addEventListener("touchend", (e) => {
 
       if (d.recentPixels && d.recentPixels.length > 0) {
         pmRecent.innerHTML = d.recentPixels.map(p => {
-          const safeColor = normalizeHexColor(String(p.color || '#888'));
           const safeX = parseInt(p.x, 10) || 0;
           const safeY = parseInt(p.y, 10) || 0;
-          return `<div class="pm-pixel-dot" style="background:${safeColor};" title="(${safeX},${safeY}) ${safeColor}"></div>`;
+          
+          // Check if this specific event was an erasure
+          const isErase = p.color === 'erase';
+          
+          // Generate inline styles and hover tooltips appropriately
+          const styleRule = isErase
+            ? `background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='white' rx='2'/><path d='M4 4l8 8M12 4L4 12' stroke='%23ef4444' stroke-width='2' stroke-linecap='round'/></svg>"); background-size: cover;`
+            : `background: ${normalizeHexColor(String(p.color || '#888'))};`;
+            
+          const tooltipText = isErase 
+            ? `(${safeX},${safeY}) Erased` 
+            : `(${safeX},${safeY}) ${normalizeHexColor(String(p.color || '#888'))}`;
+
+          return `<div class="pm-pixel-dot" style="${styleRule}" title="${tooltipText}"></div>`;
         }).join('');
       } else {
         pmRecent.innerHTML = '<span style="color:#475569;font-size:0.82rem;font-style:italic;">No pixels placed yet.</span>';
