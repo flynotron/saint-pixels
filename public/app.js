@@ -558,6 +558,14 @@ function drawGridIfDirty() {
   drawGrid();
 }
 
+function toggleGrid() {
+  gridEnabled = !gridEnabled;
+  toggleGridBtn.classList.toggle('active', gridEnabled);
+  // Force a full grid redraw since gridEnabled changed
+  lastGridScale = null;
+  redraw();
+}
+
 let isRedrawPending = false;
 
 function redraw() {
@@ -1389,10 +1397,10 @@ function updateLiveCount(count) {
 }
 
 function startAction(event) {
-  if (event.button !== 0) return; // Only allow left-clicks
+  if (event.button === 2) return; // Disallow right-clicks
 
-  // If holding shift OR the active tool is 'hand', trigger panning
-  if (event.shiftKey || tool === 'hand') {
+  // If holding shift, middle mouse button OR the active tool is 'hand', trigger panning
+  if (event.shiftKey || event.button === 1 || tool === 'hand') {
     handlePanStart(event);
     return;
   }
@@ -1601,11 +1609,7 @@ zoomInput.addEventListener('input', event => {
 });
 
 toggleGridBtn.addEventListener('click', () => {
-  gridEnabled = !gridEnabled;
-  toggleGridBtn.classList.toggle('active', gridEnabled);
-  // Force a full grid redraw since gridEnabled changed
-  lastGridScale = null;
-  redraw();
+  toggleGrid();
 });
 
 // ensure UI reflects current grid state on load
@@ -1786,53 +1790,71 @@ authUsername.addEventListener('keydown', event => {
   }
 });
 
+// Keyboard shortcuts
 document.addEventListener('keydown', event => {
-
-  switch (event.key) {
-    case 'w':
-    case 'W': moveColorFocus(0, -1); break;
-    case 's':
-    case 'S': moveColorFocus(0, 1); break;
-    case 'a':
-    case 'A': moveColorFocus(-1, 0); break;
-    case 'd':
-    case 'D': moveColorFocus(1, 0); break;
-    
-    case '1': setTool('brush'); break;
-    case '2': setTool('eraser'); break;
-    case '3': setTool('eyedropper'); break;
-    case '4': setTool('hand'); break; // NEW
-    case 'g': gridEnabled = !gridEnabled; toggleGridBtn.classList.toggle('active', gridEnabled); redraw(); break;
-  }
-
-  if (event.key === 'Shift') {
-    canvas.classList.add('shift-pan');
-  }
-
   const target = event.target;
-  if (target.closest?.('input, textarea, select')) return;
-  // Don't steal Enter from focused toolbar/auth buttons (activation uses Enter).
-  if (target.closest?.('button') && event.key === 'Enter') return;
 
+  // Always handle these shrotcuts, regardless of focus
+  switch (event.key.toLowerCase()) {
+    case 'w': moveColorFocus(0, -1); return;
+    case 's': moveColorFocus(0, 1);  return;
+    case 'a': moveColorFocus(-1, 0); return;
+    case 'd': moveColorFocus(1, 0);  return;
+  }
+
+  // Don't steal input from form fields, textareas etc.
+  if (target.closest?.('input, textarea, select')) {
+    return;
+  }
+
+  // Don't steal Enter from focused toolbar/auth buttons (activation uses Enter).
+  if (target.closest?.('button') && event.key === 'Enter') {
+    return;
+  }
+
+  // Respect browser shortcuts when modifiers are used
+  const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+  if (hasModifier) {
+    return;
+  }
+
+  event.preventDefault();
   switch (event.key) {
+    // Tools
     case '1': setTool('brush'); break;
     case '2': setTool('eraser'); break;
     case '3': setTool('eyedropper'); break;
-    case 'g': gridEnabled = !gridEnabled; toggleGridBtn.classList.toggle('active', gridEnabled); redraw(); break;
-    // 'c' key for clear removed
+    case '4': setTool('hand'); break;
+    case '5': setTool('none'); break;
+    // Grid
+    case 'G':
+    case 'g': toggleGrid(); break;
+    // Place pixel
     case 'Enter':
-      event.preventDefault();
       placeFromKeyboard();
       break;
+    // Fullscreen
     case 'f':
     case 'F':
-      event.preventDefault();
       fullscreenBtn?.click();
       break;
-    case 'ArrowUp': event.preventDefault(); moveCursorFromArrow(0, -1, event); break;
-    case 'ArrowDown': event.preventDefault(); moveCursorFromArrow(0, 1, event); break;
-    case 'ArrowLeft': event.preventDefault(); moveCursorFromArrow(-1, 0, event); break;
-    case 'ArrowRight': event.preventDefault(); moveCursorFromArrow(1, 0, event); break;
+    // Arrow key movement
+    case 'ArrowUp':
+      moveCursorFromArrow(0, -1, event);
+      break;
+    case 'ArrowDown':
+      moveCursorFromArrow(0, 1, event);
+      break;
+    case 'ArrowLeft':
+      moveCursorFromArrow(-1, 0, event);
+      break;
+    case 'ArrowRight':
+      moveCursorFromArrow(1, 0, event);
+      break;
+    // Canvas panning
+    case 'Shift':
+      canvas.classList.add('shift-pan');
+      break;
   }
 });
 
