@@ -2437,12 +2437,11 @@ viewport.addEventListener("touchend", (e) => {
           const safeX = parseInt(p.x, 10) || 0;
           const safeY = parseInt(p.y, 10) || 0;
           
-          // Check if this specific event was an erasure
           const isErase = p.color === 'erase';
           
-          // Generate inline styles and hover tooltips appropriately
+          // Using clean Base64 with no quotes inside url() ensures it never breaks HTML rendering
           const styleRule = isErase
-            ? `background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='white' rx='2'/><path d='M4 4l8 8M12 4L4 12' stroke='%23ef4444' stroke-width='2' stroke-linecap='round'/></svg>"); background-size: cover;`
+            ? `background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHJlY3Qgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2IiBmaWxsPSJ3aGl0ZSIgcng9IjIiLz48cGF0aCBkPSJNNCA0bDggOE0xMiA0TDQgMTIiIHN0cm9rZT0iI2VmNDQ0NCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=); background-size: cover;`
             : `background: ${normalizeHexColor(String(p.color || '#888'))};`;
             
           const tooltipText = isErase 
