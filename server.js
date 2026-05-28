@@ -75,14 +75,16 @@ try {
   console.error('Failed to pre-load index.html:', err);
 }
 
-// ── Index route: rate-limited via globalLimiter (applied inline so the limiter
-//    defined below in the file still covers this early route).
+// ── Index route: 120 req / min / IP ─────────────────────────────────────────
+// Each hit does string replacement on cached HTML; cheap but still needs a
+// tighter bound than the 600/min global limiter. Uses safeIp (IPv6-normalised)
+// rather than the raw req.ip to stay consistent with all other limiters.
 const indexLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 600,
+  max: 120,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req.ip || 'unknown'),
+  keyGenerator: (req) => safeIp(req),
   message: { error: 'Too many requests. Please slow down.' },
 });
 
@@ -172,7 +174,7 @@ const globalLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => safeIp(req),
   message: { error: 'Too many requests. Please slow down.' },
-  skip: (req) => req.path === '/api/stream',
+  skip: (req) => req.method === 'GET' && req.path === '/api/stream',
 });
 app.use(globalLimiter);
 
@@ -237,28 +239,102 @@ const forgotPasswordLimiter = rateLimit({
   message: { error: 'Too many reset requests. Please wait 15 minutes.' },
 });
 
-// ── Palette limiter: 120 req / min / IP ──────────────────────────────────────
+// ── Palette limiter: 30 req / min / IP ───────────────────────────────────────
+// The palette is a full table scan that almost never changes.
+// 120/min invited DB thrash under load; 30/min is more than enough for
+// any legitimate client (typically fetched once at startup, then cached).
 const paletteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => safeIp(req),
+  message: { error: 'Too many palette requests. Please slow down.' },
+});
+
+// ── Chat POST limiter: 20 messages / min, keyed by username when available ────
+// Keyed by username (resolved from the session DB) rather than the raw Bearer
+// token: a rotated or freshly-issued token would otherwise start a new bucket,
+// letting a script bypass the limit by re-logging in between bursts.
+// Falls back to IP so unauthenticated probes are still throttled.
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const auth = req.headers.authorization || '';
+    const [type, token] = auth.split(' ');
+    if (type === 'Bearer' && token) {
+      try {
+        const row = db.prepare(
+          'SELECT username FROM sessions WHERE token = ? AND expires_at > ?'
+        ).get(token, Date.now());
+        if (row?.username) return `chat:user:${row.username}`;
+      } catch { /* fall through */ }
+    }
+    return `chat:ip:${safeIp(req)}`;
+  },
+  message: { error: 'Sending too fast. Please slow down.' },
+});
+
+// ── Chat history (GET) limiter: 60 req / min / IP ────────────────────────────
+// Previously unlimited — an attacker could hammer GET /api/chat to force
+// repeated full-table scans of chat_messages.
+const chatHistoryLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => safeIp(req),
+  message: { error: 'Too many history requests. Please slow down.' },
+});
+
+// ── /api/me limiter: 120 req / min / IP ──────────────────────────────────────
+// /api/me does two DB lookups per call (session + account row).
+// Without a limiter a script can poll it freely to exhaust DB read capacity.
+const meLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => safeIp(req),
+  message: { error: 'Too many requests. Please slow down.' },
 });
 
-// ── Chat limiter: 30 messages / min, keyed by session token when available ────
-const chatLimiter = rateLimit({
+// ── /api/logout limiter: 30 req / min / IP ────────────────────────────────────
+// Each logout does a DB DELETE; flooding it is cheap for the attacker but
+// non-trivial for SQLite under write contention.
+const logoutLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    const auth = req.headers.authorization || '';
-    const [, token] = auth.split(' ');
-    if (token) return `chat:token:${token}`;
-    return `chat:ip:${safeIp(req)}`;
-  },
-  message: { error: 'Sending too fast. Please slow down.' },
+  keyGenerator: (req) => safeIp(req),
+  message: { error: 'Too many requests. Please slow down.' },
+});
+
+// ── /api/verify-email limiter: 10 req / 15 min / IP ──────────────────────────
+// Unguarded token lookups can be used to enumerate valid tokens via timing.
+const verifyEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => safeIp(req),
+  message: { error: 'Too many verification attempts. Please try again later.' },
+});
+
+// ── /api/reset-password limiter: 5 req / 15 min / IP ─────────────────────────
+// CRITICAL: this endpoint calls bcrypt.hash() (expensive CPU) on every request.
+// Without a limiter an attacker can trigger sustained bcrypt work to exhaust CPU.
+const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => safeIp(req),
+  message: { error: 'Too many reset attempts. Please try again later.' },
 });
 
 // ── SSE reconnect-rate limiter: max 20 new connections / 60 s / IP ───────────
@@ -296,7 +372,7 @@ app.use('/api/stream', sseLimiter);
 initializeSSE(app, db, sseConnectionGuard);
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
-initializeChat(app, db, broadcastSSE, chatLimiter);
+initializeChat(app, db, broadcastSSE, chatLimiter, chatHistoryLimiter);
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  API ROUTES
@@ -385,7 +461,7 @@ app.post('/api/login', authLimiter, requireCaptcha, async (req, res) => {
 });
 
 // ── Email verification ────────────────────────────────────────────────────────
-app.get('/api/verify-email', (req, res) => {
+app.get('/api/verify-email', verifyEmailLimiter, (req, res) => {
   const { token } = req.query;
   if (!token) return res.status(400).send('Missing token.');
 
@@ -463,7 +539,7 @@ app.post('/api/forgot-password', forgotPasswordLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/reset-password', async (req, res) => {
+app.post('/api/reset-password', resetPasswordLimiter, async (req, res) => {
   const { token, password } = req.body || {};
   if (!token || !password) return res.status(400).json({ error: 'Token and password are required.' });
   if (typeof token !== 'string' || token.length > 128) return res.status(400).json({ error: 'Invalid token.' });
@@ -487,7 +563,7 @@ app.post('/api/reset-password', async (req, res) => {
 });
 
 // ── Session ───────────────────────────────────────────────────────────────────
-app.get('/api/me', (req, res) => {
+app.get('/api/me', meLimiter, (req, res) => {
   if (req.localBypassUser) {
     return res.json({ username: req.localBypassUser, emailVerified: true, cooldown: 0 });
   }
@@ -505,7 +581,7 @@ app.get('/api/me', (req, res) => {
   });
 });
 
-app.post('/api/logout', (req, res) => {
+app.post('/api/logout', logoutLimiter, (req, res) => {
   const [, token] = (req.headers.authorization || '').split(' ');
   res.json({ success: closeSession(token) });
 });
@@ -537,4 +613,44 @@ server.on('error', (err) => {
   } else {
     console.error('Server error:', err);
   }
+});
+
+// ── Slowloris / slow-header attack mitigation ─────────────────────────────────
+// Without these a client can hold a TCP connection open indefinitely by sending
+// headers extremely slowly, exhausting the server's connection pool.
+//
+//   headersTimeout  — max time (ms) to receive the full HTTP request headers
+//   requestTimeout  — max time (ms) for the entire request (headers + body)
+//   keepAliveTimeout — how long an idle keep-alive connection is held open
+//
+// Values are intentionally conservative: legitimate browsers finish headers in
+// well under 10 s; the defaults (0 = unlimited) invite abuse.
+server.headersTimeout  = 10_000;   // 10 s to finish sending headers
+server.requestTimeout  = 30_000;   // 30 s for full request (covers slow bodies)
+server.keepAliveTimeout = 65_000;  // slightly above typical proxy idle timeout
+
+// ── Global Express error handler ─────────────────────────────────────────────
+// Catches any error thrown synchronously inside a route handler that wasn't
+// caught by the handler's own try/catch.  Without this, Express would call
+// next(err) → default handler which sends a stack trace to the client and,
+// in some Node versions, can crash the process.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('[unhandled route error]', err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ── Unhandled rejection / exception safety net ────────────────────────────────
+// Prevents a single unhandled async throw from silently killing the process.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+  // Give in-flight requests a moment to drain before exiting — avoids a hard kill
+  // that would leave SSE clients with broken connections and no error.
+  server.close(() => process.exit(1));
+  setTimeout(() => process.exit(1), 5_000).unref();
 });
