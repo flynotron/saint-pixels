@@ -2,6 +2,8 @@
   <img src="./1180x100github_title.png" alt="Saint Pixels Title Screen">
 </p>
 
+# Sait Pixels
+
 ## About
 
 Saint-Pixels is a multiplayer pixel canvas project inspired by classic internet pixel boards. Players can work together to create huge artworks or compete for space on the canvas.
@@ -17,6 +19,7 @@ The canvas size is **1920x1080** and every pixel matters.
 - Large shared canvas
 - Simple and clean interface
 - Pixel art focused gameplay
+- Live chat with other players
 
 ## Keyboard Shortcuts
 
@@ -26,9 +29,12 @@ The canvas size is **1920x1080** and every pixel matters.
 | `2` | Eraser |
 | `3` | Fill |
 | `4` | Eyedropper |
+| `5` | None |
+| `F` | Toggle fullscreen |
 | `G` | Toggle grid |
 | `Shift + drag` | Pan canvas |
 | `Scroll` | Zoom in/out |
+| `w` `a` `s` `d` | Move through color palette |
 | Arrow keys | Move selecting cursor |
 
 ## License
@@ -74,3 +80,11 @@ SQLite database (`database.sqlite`) is created automatically on first run. It is
 | POST | `/api/login` | Login |
 | GET | `/api/me` | Get current user |
 | POST | `/api/logout` | Logout |
+| GET | `/api/verify-email` | Verify email by token |
+| GET | `/api/chat` | Most recent 200 messages |
+| POST | `/api/chat` | Send a new message |
+| GET | `/api/leaderboard` | Top 100 players. Filter by period using ?period=<today, week, month, year, decade,alltime> |
+| GET | `/api/profile/:username` | Returns stats for a given username |
+| POST | `/api/pixel` | Place a colored pixel |
+| POST | `/api/erase` | Erase a pixel |
+| GET | `/api/stream` | Most recent pixel history of all users |
