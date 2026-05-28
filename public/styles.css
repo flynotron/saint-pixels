@@ -1187,7 +1187,6 @@ header.flex {
 .spawn-container input[type="number"]::-webkit-inner-spin-button {
   display: none;
 }
-.brand-contribute::before, .brand-donate::before { content: none; }
 [data-tool="brush"] .tool-icon, .tool[data-tool="brush"] {
   --tool-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e2e8f0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08'/%3E%3Cpath d='M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1 1 2.48 1.94 4 2.02 2.2.05 4-.97 4-3.02a3.002 3.002 0 0 0-3-3.04z'/%3E%3C/svg%3E");
 }

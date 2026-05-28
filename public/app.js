@@ -2352,8 +2352,21 @@ viewport.addEventListener("touchend", (e) => {
      // as clientY so the offset doesn't overshoot at non-100% browser zoom.
      const dpr = window.devicePixelRatio || 1;
      const vvScale = (window.visualViewport && window.visualViewport.scale) || 1;
-     const radiusY = (touch.radiusY || 0) / dpr / vvScale;
-     const coords = getCanvasCoords(touch.clientX, touch.clientY + radiusY);
+     // iOS Safari reports clientY at the top of the contact ellipse on older
+     // versions, but the radiusY value it gives is a fixed hardware constant
+     // (~11 physical px) that doesn't track the actual touch centroid — it
+     // overcorrects especially when the browser is pinch-zoomed out.
+     // We detect iOS Safari and skip the adjustment; the tap lands close enough
+     // to centre already. On other platforms we apply a conservative cap (max
+     // 8 CSS px) so any residual error stays small.
+     const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+     let adjustedClientY = touch.clientY;
+     if (!isIOS) {
+       const radiusY = (touch.radiusY || 0) / dpr / vvScale;
+       adjustedClientY = touch.clientY + Math.min(radiusY, 8);
+     }
+     const coords = getCanvasCoords(touch.clientX, adjustedClientY);
      applyToolAtCell(coords.x, coords.y);
   }
 });
