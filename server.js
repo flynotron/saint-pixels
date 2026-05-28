@@ -67,10 +67,29 @@ app.use(localBypassMiddleware); // <-- Activates req.localBypassUser if valid
 const fs        = require('fs');
 const indexPath = path.join(__dirname, 'public', 'index.html');
 
-app.get('/', (req, res) => {
+// Cache index.html once at startup — avoids a synchronous fs read on every request.
+let cachedIndexHtml = null;
+try {
+  cachedIndexHtml = fs.readFileSync(indexPath, 'utf8');
+} catch (err) {
+  console.error('Failed to pre-load index.html:', err);
+}
+
+// ── Index route: rate-limited via globalLimiter (applied inline so the limiter
+//    defined below in the file still covers this early route).
+const indexLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.ip || 'unknown'),
+  message: { error: 'Too many requests. Please slow down.' },
+});
+
+app.get('/', indexLimiter, (req, res) => {
+  if (!cachedIndexHtml) return res.status(500).send('Server error.');
   try {
-    let html = fs.readFileSync(indexPath, 'utf8');
-    html = html.replace('__VITE_HCAPTCHA_SITEKEY__', process.env.HCAPTCHA_SITEKEY || '');
+    let html = cachedIndexHtml.replace('__VITE_HCAPTCHA_SITEKEY__', process.env.HCAPTCHA_SITEKEY || '');
 
     // Inject bypass flag if middleware detected a private IP + MOBILE_DEBUG=true
     if (req.localBypassUser) {
@@ -117,6 +136,24 @@ setSessionDb(db);
 setCooldownDb(db);
 setSseDb(db);
 setAntiCheatDb(db);
+
+// ── Safe email validator — O(n), no backtracking, RFC 5321 length cap ────────
+function isValidEmail(str) {
+  if (!str || typeof str !== 'string' || str.length > 254) return false;
+  const at = str.indexOf('@');
+  if (at < 1) return false;
+  const local  = str.slice(0, at);
+  const domain = str.slice(at + 1);
+  return (
+    local.length > 0 &&
+    local.length <= 64 &&
+    domain.length > 0 &&
+    domain.includes('.') &&
+    !domain.startsWith('.') &&
+    !domain.endsWith('.') &&
+    !/\s/.test(str)
+  );
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  RATE LIMITERS & DDOS PROTECTION
@@ -280,7 +317,7 @@ app.post('/api/register', registerLimiter, requireCaptcha, async (req, res) => {
     return res.status(400).json({ error: 'Password must be at least 8 characters.' });
   if (password.length > 256)
     return res.status(400).json({ error: 'Password too long.' });
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+  if (!isValidEmail(email))
     return res.status(400).json({ error: 'A valid email address is required.' });
 
   try {
@@ -396,7 +433,7 @@ app.post('/api/resend-verification', resendLimiter, async (req, res) => {
 app.post('/api/forgot-password', forgotPasswordLimiter, async (req, res) => {
   const { email } = req.body || {};
   const OK = { message: 'If that email is registered, a reset link has been sent.' };
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.json(OK);
+  if (!isValidEmail(email)) return res.json(OK);
 
   try {
     const account = db.prepare('SELECT username FROM accounts WHERE email = ?').get(email.toLowerCase());
