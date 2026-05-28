@@ -49,6 +49,7 @@ const db = new Database(dbFile);
 
 const { setDb: setSessionDb, createSession, closeSession, getSession } = require('./src/helpers/session.js');
 const { setDb: setCooldownDb }  = require('./src/helpers/cooldown.js');
+const { getCooldown } = require('./src/helpers/cooldown.js');
 const { setDb: setAntiCheatDb } = require('./src/helpers/AntiCheat.js');
 const { hashPassword, verifyPassword } = require('./src/helpers/password.js');
 const { requireCaptcha }         = require('./src/helpers/captcha.js');
@@ -302,7 +303,13 @@ app.post('/api/register', registerLimiter, requireCaptcha, async (req, res) => {
     });
 
     const token = createSession(username);
-    return res.json({ username, token, emailVerified: false, message: 'Account created! Check your email to verify your address.' });
+    return res.json({ 
+      username, 
+      token, 
+      emailVerified: false, 
+      message: 'Account created! Check your email to verify your address.',
+      cooldown: 0 // New users have no initial cooldown
+    });
   } catch (err) {
     console.error('Register error:', err);
     return res.status(500).json({ error: 'Could not create account.' });
@@ -326,7 +333,14 @@ app.post('/api/login', authLimiter, requireCaptcha, async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials.' });
 
     const token = createSession(row.username);
-    return res.json({ username: row.username, token, emailVerified: !!row.email_verified });
+    const cooldownLeft = getCooldown(row.username); // Fetch current cooldown
+
+    return res.json({ 
+      username: row.username, 
+      token, 
+      emailVerified: !!row.email_verified,
+      cooldown: cooldownLeft 
+    });
   } catch (err) {
     console.error('[login] Unexpected error:', err);
     return res.status(500).json({ error: 'Server error. Please try again.' });
@@ -437,15 +451,21 @@ app.post('/api/reset-password', async (req, res) => {
 
 // ── Session ───────────────────────────────────────────────────────────────────
 app.get('/api/me', (req, res) => {
-  // If local bypass is engaged, immediately return the anonymous user
   if (req.localBypassUser) {
-    return res.json({ username: req.localBypassUser, emailVerified: true });
+    return res.json({ username: req.localBypassUser, emailVerified: true, cooldown: 0 });
   }
 
   const session = getSession(req);
   if (!session) return res.status(401).json({ error: 'Not authenticated.' });
+  
   const row = db.prepare('SELECT email_verified FROM accounts WHERE username = ?').get(session.username);
-  return res.json({ username: session.username, emailVerified: row ? !!row.email_verified : false });
+  const cooldownLeft = getCooldown(session.username); // Get remaining time from DB
+  
+  return res.json({ 
+    username: session.username, 
+    emailVerified: row ? !!row.email_verified : false,
+    cooldown: cooldownLeft 
+  });
 });
 
 app.post('/api/logout', (req, res) => {

@@ -295,6 +295,14 @@ async function updateAuthState() {
 
     const data = await response.json();
     currentUser = data.username;
+    
+    // Sync local cooldown timer with server remaining time
+    if (data.cooldown && data.cooldown > 0) {
+      lastPlaceAt = Date.now() - (COOLDOWN_MS - data.cooldown);
+    } else {
+      lastPlaceAt = 0; // Ready to place
+    }
+
     // If the server says unverified but the user just clicked the link this session,
     // trust localStorage — the DB may lag slightly behind the redirect.
     const locallyVerified = localStorage.getItem(EMAIL_VERIFIED_KEY) === '1';
@@ -325,8 +333,16 @@ function showAuthMessage(message, isError = true) {
   authMessage.style.color = isError ? '#fca5a5' : '#86efac';
 }
 
-function setCurrentUser(username, emailVerified = false) {
+function setCurrentUser(username, emailVerified = false, cooldown = 0) {
   currentUser = username;
+  
+  // Sync local cooldown timer with server remaining time
+  if (cooldown && cooldown > 0) {
+    lastPlaceAt = Date.now() - (COOLDOWN_MS - cooldown);
+  } else {
+    lastPlaceAt = 0; // Ready to place
+  }
+
   // Expose auth state for chat.js
   window.__username  = username;
   window.__authToken = getStoredToken();
@@ -350,6 +366,10 @@ async function handleLogout() {
   // Clear auth globals used by chat.js
   window.__username  = null;
   window.__authToken = null;
+  
+  // Reset placement cooldown on logout
+  lastPlaceAt = 0; 
+  
   dispatchStateChange({ currentUser: null });
   showAuthMessage('Logged out', false);
   updateCooldownLabel();
@@ -386,7 +406,8 @@ async function handleLogin(event) {
 
     resetCaptcha();
     saveToken(data.token);
-    setCurrentUser(data.username, data.emailVerified);
+    // Pass the cooldown data to setCurrentUser
+    setCurrentUser(data.username, data.emailVerified, data.cooldown);
   } catch (error) {
     resetCaptcha();
     showAuthMessage('Unable to reach server.');
@@ -430,9 +451,9 @@ async function handleRegister(event) {
 
     // Save token and update auth state so the overlay closes immediately
     saveToken(data.token);
-    await updateAuthState();
-    // Fallback: ensure UI shows the new username
-    setCurrentUser(data.username, data.emailVerified);
+    await updateAuthState(); 
+    // Fallback: ensure UI shows the new username and syncs cooldown
+    setCurrentUser(data.username, data.emailVerified, data.cooldown);
     if (data.message) showAuthMessage(data.message, false);
   } catch (error) {
     showAuthMessage('Unable to reach server.');
