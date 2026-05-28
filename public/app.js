@@ -1509,6 +1509,7 @@ function handlePanStart(event) {
   panStartX = event.clientX - offsetX;
   panStartY = event.clientY - offsetY;
   // Always force the grabbing cursor regardless of tool
+  canvas.classList.remove('shift-pan');
   viewport.classList.remove('tool-hand-active');
   viewport.classList.add('tool-hand-dragging');
 }
@@ -1830,16 +1831,18 @@ authUsername.addEventListener('keydown', event => {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', event => {
-  if (event.key === 'Shift') {
-    canvas.classList.add('shift-pan');
-  }
-
   const target = event.target;
   // Let the browser handle standard text typing naturally 
   if (target.closest?.('input, textarea, select')) return;
   // Don't steal Enter from focused toolbar/auth buttons (activation uses Enter).
   if (target.closest?.('button') && event.key === 'Enter') return;
 
+  // Respect browser shortcuts when modifiers are used
+  const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+  if (hasModifier) {
+    return;
+  }
+  
   switch (event.key) {
     case 'w':
     case 'W': moveColorFocus(0, -1); break;
@@ -1853,12 +1856,11 @@ document.addEventListener('keydown', event => {
     case '1': setTool('brush'); break;
     case '2': setTool('eraser'); break;
     case '3': setTool('eyedropper'); break;
-    case '4': setTool('hand'); break; 
+    case '4': setTool('hand'); break;
+    case '5': setTool('none'); break;
     case 'g': 
     case 'G': 
-      gridEnabled = !gridEnabled; 
-      toggleGridBtn.classList.toggle('active', gridEnabled); 
-      redraw(); 
+      toggleGrid(); 
       break;
 
     case 'Enter':
