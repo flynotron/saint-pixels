@@ -69,7 +69,7 @@ async function sendMail({ to, subject, html, text }) {
     _lastSentAt.delete(key);
     const body = await res.text();
     const err = new Error(`Resend API error ${res.status}: ${body}`);
-    console.error(`[mailer] Failed to send "${subject}" → ${to}:`, err.message);
+    console.error('[mailer] Failed to send "%s" → %s: %s', subject, to, err.message);
     throw err;
   }
 
