@@ -1026,6 +1026,14 @@
   border-color: rgba(56,189,248,0.8) !important;
   color: #fff !important;
 }
+/* Show pointer cursor on tool and toggle buttons on devices that have a
+   precise pointer (mouse/trackpad). Excludes touch-only devices so the
+   canvas crosshair cursor isn't overridden on mobile. */
+@media (pointer: fine) {
+  .toggle-btn, .tool {
+    cursor: pointer;
+  }
+}
 .toggle-btn:hover, .tool:hover {
   transform: translateY(-1px);
 }
