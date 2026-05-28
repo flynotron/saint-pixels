@@ -2,8 +2,6 @@
   <img src="images/pngs/1180x100github_title.png" alt="Saint Pixels Title Screen">
 </p>
 
-# Sait Pixels
-
 ## About
 
 Saint-Pixels is a multiplayer pixel canvas project inspired by classic internet pixel boards. Players can work together to create huge artworks or compete for space on the canvas.
