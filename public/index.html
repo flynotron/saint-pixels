@@ -282,6 +282,7 @@
             <button data-tool="eraser"      type="button" class="tool tool--secondary border border-white/10 bg-white/5 rounded-xl text-center px-2 py-1.5 text-[0.8rem] min-h-[2.1rem]">Eraser</button>
             <button data-tool="eyedropper"  type="button" class="tool tool--secondary border border-white/10 bg-white/5 rounded-xl text-center px-2 py-1.5 text-[0.8rem] min-h-[2.1rem]">Eyedropper</button>
             <button data-tool="hand"        type="button" class="tool tool--secondary border border-white/10 bg-white/5 rounded-xl text-center px-2 py-1.5 text-[0.8rem] min-h-[2.1rem]">Hand</button>
+            <button data-tool="ruler"       type="button" class="tool tool--secondary border border-white/10 bg-white/5 rounded-xl text-center px-2 py-1.5 text-[0.8rem] min-h-[2.1rem]">Ruler</button>
             <button data-tool="none"        type="button" class="tool tool--secondary border border-white/10 bg-white/5 rounded-xl text-center px-2 py-1.5 text-[0.8rem] min-h-[2.1rem]">None</button>
           </div>
         </section>
@@ -309,7 +310,7 @@
             <li><kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">Enter</kbd> places a pixel at the cursor</li>
             <li>Hold <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">Shift</kbd> + drag to pan</li>
             <li>Mouse wheel to zoom</li>
-            <li>Press <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">1</kbd> Brush, <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">2</kbd> Eraser, <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">3</kbd> Eyedropper, <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">4</kbd> Hand, <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">5</kbd> None</li>
+            <li>Press <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">1</kbd> Brush, <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">2</kbd> Eraser, <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">3</kbd> Eyedropper, <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">4</kbd> Hand, <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">5</kbd> Ruler, <kbd class="bg-white/10 border border-white/15 rounded-md px-1.5 py-0.5 text-[0.85rem] text-white">6</kbd> None</li>
           </ul>
         </section>
 
@@ -324,7 +325,7 @@
           </label>
           <button id="toggle-grid"  class="toggle-btn active px-3.5 py-2.5 rounded-xl border border-white/10 bg-white/5 text-white transition-colors">Grid</button>
 
-          <button id="export-png"   class="accent px-3.5 py-2.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-sky-400/25 hover:border-sky-400/80 transition-colors">Export PNG</button>
+          <button id="export-png"   class="accent px-3.5 py-2.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-sky-400/25 hover:border-sky-400/80 transition-colors cursor-pointer">Export PNG</button>
 
           <div class="ml-auto flex gap-4 text-[0.9rem] font-medium text-slate-200 items-center canvas-info">
             <div>Coordinates: <span id="coord">—</span></div>
@@ -343,7 +344,7 @@
             <div id="fullscreen-palette" class="fullscreen-palette"></div>
 
             <button id="fullscreen-btn"
-              class="absolute bottom-5 right-5 z-[10000] p-2 flex items-center justify-center rounded-lg bg-black/60 border border-white/15 text-slate-100 hover:bg-black/85 hover:scale-105 transition-all backdrop-blur-sm"
+              class="absolute bottom-5 right-5 z-[10000] p-2 flex items-center justify-center rounded-lg bg-black/60 border border-white/15 text-slate-100 hover:bg-black/85 hover:scale-105 transition-all backdrop-blur-sm cursor-pointer"
               aria-label="Toggle Fullscreen" title="Fullscreen">
               <svg id="fs-icon-enter" viewBox="0 0 24 24" width="28" height="28" style="display:block;">
                 <path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
