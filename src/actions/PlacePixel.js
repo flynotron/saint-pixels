@@ -56,10 +56,16 @@ class PlacePixel {
         const { x, y, color } = req.body;
         if (typeof x === 'number' && typeof y === 'number' && typeof color === 'string') {
           const safeColor = color.replace(/[^0-9a-fA-F#]/g, '').slice(0, 7);
+          const now = Date.now();
           _db.prepare(`
             INSERT OR REPLACE INTO pixels (username, x, y, color, placed_at)
             VALUES (?, ?, ?, ?, ?)
-          `).run(session.username, x, y, safeColor, Date.now());
+          `).run(session.username, x, y, safeColor, now);
+          // Append-log for timelapse generation — one row per event, never pruned.
+          _db.prepare(`
+            INSERT INTO pixel_history (username, x, y, color, placed_at)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(session.username, x, y, safeColor, now);
         }
       } catch (err) {
         console.error('Failed to store pixel:', err);
@@ -95,11 +101,18 @@ class PlacePixel {
       try {
         const { x, y } = req.body;
         if (typeof x === 'number' && typeof y === 'number') {
+          const now = Date.now();
           // Upsert the erase sentinel — same bounded-table guarantee as pixel placement.
           _db.prepare(`
             INSERT OR REPLACE INTO pixels (username, x, y, color, placed_at)
             VALUES (?, ?, ?, 'erase', ?)
-          `).run(session.username, x, y, Date.now());
+          `).run(session.username, x, y, now);
+
+          // Append-log for timelapse generation.
+          _db.prepare(`
+            INSERT INTO pixel_history (username, x, y, color, placed_at)
+            VALUES (?, ?, ?, 'erase', ?)
+          `).run(session.username, x, y, now);
 
           // Increment this player's pixel count for today to update the leaderboard
           _db.prepare(`

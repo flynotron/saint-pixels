@@ -1,0 +1,458 @@
+#!/usr/bin/env node
+/**
+ * timelapse.js — Saint-Pixels canvas timelapse generator
+ *
+ * Reads the pixel_history table (append-log of every placement ever made)
+ * and renders each event onto a 1920×1080 canvas, then pipes the frames
+ * through ffmpeg to produce a timelapse MP4.
+ *
+ * USAGE
+ * ─────
+ *   node timelapse.js [options]
+ *
+ * OPTIONS
+ *   --db <path>         Path to database.sqlite  (default: ./database.sqlite)
+ *   --out <path>        Output MP4 file           (default: ./timelapse.mp4)
+ *   --fps <n>           Output framerate          (default: 30)
+ *   --pps <n>           Pixels per second — how many placement events to
+ *                       burn into each output second (default: 200)
+ *                       e.g. 200 pps @ 30 fps → a new frame every 200/30 ≈ 7 pixels
+ *   --from <ISO date>   Only include events on/after this date  (optional)
+ *   --to   <ISO date>   Only include events up to this date     (optional)
+ *   --user <username>   Only include placements by this user    (optional)
+ *   --scale <n>         Downscale factor for the output video   (default: 1)
+ *                       2 = render at 960×540 (half res, much faster)
+ *   --bg <hex>          Background fill colour                  (default: 2e2e2f)
+ *   --no-watermark      Suppress the "Saint-Pixels" text overlay
+ *   --help              Print this help and exit
+ *
+ * REQUIREMENTS
+ * ────────────
+ *   npm install canvas better-sqlite3
+ *   ffmpeg must be on PATH  (or set FFMPEG_PATH env var)
+ *
+ * DATABASE REQUIREMENT
+ * ────────────────────
+ *   This script reads from `pixel_history`, NOT the `pixels` table.
+ *   `pixels` only stores the current board state (upsert model).
+ *   `pixel_history` is an append-log added by the migration in server.js.
+ *   See the "Adding pixel_history to your server" section in the README
+ *   or follow the instructions printed when this script first runs.
+ *
+ * HOW IT WORKS
+ * ────────────
+ *   1. Load all pixel_history rows ordered by placed_at ASC.
+ *   2. Group them into "frames" — every (pps / fps) events = 1 frame.
+ *   3. For each frame: paint the new pixels onto the canvas, encode the
+ *      raw RGBA pixel buffer, and write it to ffmpeg via stdin pipe.
+ *   4. ffmpeg assembles the raw frames into a compressed MP4.
+ *
+ * PERFORMANCE NOTES
+ * ─────────────────
+ *   A full 1920×1080 canvas is 8 MB of raw RGBA per frame.
+ *   At 30 fps, that's 240 MB/s into ffmpeg — fine on localhost, but use
+ *   --scale 2 (960×540) to halve that if you're RAM-constrained.
+ *   canvas.toBuffer('raw') is the fastest export path (no PNG compression).
+ */
+
+'use strict';
+
+const path      = require('path');
+const fs        = require('fs');
+const { spawn } = require('child_process');
+
+// ── Argument parsing ──────────────────────────────────────────────────────────
+
+const args = process.argv.slice(2);
+
+function getArg(flag, fallback) {
+  const idx = args.indexOf(flag);
+  if (idx !== -1 && args[idx + 1]) return args[idx + 1];
+  return fallback;
+}
+
+function hasFlag(flag) {
+  return args.includes(flag);
+}
+
+if (hasFlag('--help') || hasFlag('-h')) {
+  console.log(`
+Usage: node timelapse.js [options]
+
+  --db <path>        SQLite database file  (default: ./database.sqlite)
+  --out <path>       Output MP4            (default: ./timelapse.mp4)
+  --fps <n>          Output framerate      (default: 30)
+  --pps <n>          Pixel events per second of output (default: 200)
+  --from <ISO>       Start date filter     (e.g. 2025-01-01)
+  --to   <ISO>       End date filter       (e.g. 2025-12-31)
+  --user <name>      Filter to one user
+  --scale <n>        Downscale factor      (default: 1, use 2 for half-res)
+  --bg <hex>         Background colour     (default: 2e2e2f)
+  --no-watermark     Disable text overlay
+  --help             Show this help
+`.trim());
+  process.exit(0);
+}
+
+const DB_PATH      = getArg('--db',  path.join(process.cwd(), 'database.sqlite'));
+const OUT_PATH     = getArg('--out', path.join(process.cwd(), 'timelapse.mp4'));
+const FPS          = Math.max(1, parseInt(getArg('--fps', '30'), 10));
+const PPS          = Math.max(1, parseInt(getArg('--pps', '200'), 10));
+const FROM_DATE    = getArg('--from', null);
+const TO_DATE      = getArg('--to',   null);
+const USER_FILTER  = getArg('--user', null);
+const SCALE        = Math.max(1, parseInt(getArg('--scale', '1'), 10));
+const BG_HEX       = '#' + getArg('--bg', '2e2e2f').replace(/^#/, '');
+const WATERMARK    = !hasFlag('--no-watermark');
+const FFMPEG_BIN   = process.env.FFMPEG_PATH || 'ffmpeg';
+
+// Canvas dimensions
+const BOARD_W = 1920;
+const BOARD_H = 1080;
+const OUT_W   = Math.round(BOARD_W / SCALE);
+const OUT_H   = Math.round(BOARD_H / SCALE);
+
+// Events-per-frame (may be fractional — we accumulate)
+const EVENTS_PER_FRAME = PPS / FPS;
+
+// ── Dependency checks ─────────────────────────────────────────────────────────
+
+let Database, createCanvas;
+
+try {
+  Database = require('better-sqlite3');
+} catch {
+  console.error(
+    '\n[timelapse] ERROR: better-sqlite3 is not installed.\n' +
+    '  Run:  npm install better-sqlite3\n'
+  );
+  process.exit(1);
+}
+
+try {
+  ({ createCanvas } = require('canvas'));
+} catch {
+  console.error(
+    '\n[timelapse] ERROR: canvas is not installed.\n' +
+    '  Run:  npm install canvas\n' +
+    '  (You may also need system libs: libcairo2-dev, libpango1.0-dev, libpng-dev)\n'
+  );
+  process.exit(1);
+}
+
+// ── Database ──────────────────────────────────────────────────────────────────
+
+if (!fs.existsSync(DB_PATH)) {
+  console.error(`\n[timelapse] ERROR: database not found at: ${DB_PATH}\n`);
+  process.exit(1);
+}
+
+const db = new Database(DB_PATH, { readonly: true });
+
+// Check that pixel_history exists
+const tables = db.prepare(
+  "SELECT name FROM sqlite_master WHERE type='table' AND name='pixel_history'"
+).get();
+
+if (!tables) {
+  console.error(`
+[timelapse] ERROR: The 'pixel_history' table does not exist in this database.
+
+The regular 'pixels' table only stores the CURRENT board state (upsert model).
+To generate a timelapse you need a separate append-log that records every
+placement event.
+
+─────────────────────────────────────────────────────────────────────────────
+HOW TO ADD pixel_history TO YOUR SERVER
+─────────────────────────────────────────────────────────────────────────────
+
+1. In database.js, inside initializeDatabase(), add this table creation:
+
+     CREATE TABLE IF NOT EXISTS pixel_history (
+       id         INTEGER PRIMARY KEY AUTOINCREMENT,
+       username   TEXT    NOT NULL,
+       x          INTEGER NOT NULL,
+       y          INTEGER NOT NULL,
+       color      TEXT    NOT NULL,
+       placed_at  INTEGER NOT NULL
+     );
+     CREATE INDEX IF NOT EXISTS idx_ph_placed_at ON pixel_history(placed_at);
+     CREATE INDEX IF NOT EXISTS idx_ph_username  ON pixel_history(username);
+
+2. In PlacePixel.js, inside PlacePixel.execute(), after the pixels UPSERT, add:
+
+     _db.prepare(\`
+       INSERT INTO pixel_history (username, x, y, color, placed_at)
+       VALUES (?, ?, ?, ?, ?)
+     \`).run(session.username, x, y, safeColor, Date.now());
+
+   Do the same inside PlacePixel.erase():
+
+     _db.prepare(\`
+       INSERT INTO pixel_history (username, x, y, color, placed_at)
+       VALUES (?, ?, ?, 'erase', ?)
+     \`).run(session.username, x, y, Date.now());
+
+3. Restart your server — new placements will be recorded from that point on.
+
+─────────────────────────────────────────────────────────────────────────────
+`);
+  process.exit(1);
+}
+
+// ── Build query ───────────────────────────────────────────────────────────────
+
+const conditions = [];
+const bindings   = [];
+
+if (FROM_DATE) {
+  const ts = Date.parse(FROM_DATE);
+  if (isNaN(ts)) { console.error(`[timelapse] Invalid --from date: ${FROM_DATE}`); process.exit(1); }
+  conditions.push('placed_at >= ?');
+  bindings.push(ts);
+}
+if (TO_DATE) {
+  const ts = Date.parse(TO_DATE + 'T23:59:59');
+  if (isNaN(ts)) { console.error(`[timelapse] Invalid --to date: ${TO_DATE}`); process.exit(1); }
+  conditions.push('placed_at <= ?');
+  bindings.push(ts);
+}
+if (USER_FILTER) {
+  conditions.push('username = ?');
+  bindings.push(USER_FILTER);
+}
+
+const WHERE = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+const query = `SELECT username, x, y, color, placed_at FROM pixel_history ${WHERE} ORDER BY placed_at ASC`;
+
+console.log('[timelapse] Counting events…');
+const totalRow = db.prepare(`SELECT COUNT(*) AS n FROM pixel_history ${WHERE}`).get(...bindings);
+const total    = totalRow.n;
+
+if (total === 0) {
+  console.error('[timelapse] No pixel events found for the given filters. Nothing to render.');
+  process.exit(1);
+}
+
+console.log(`[timelapse] ${total.toLocaleString()} events | ${FPS} fps | ${PPS} pps | scale 1/${SCALE}`);
+const estimatedFrames = Math.ceil(total / EVENTS_PER_FRAME);
+const estimatedSecs   = (estimatedFrames / FPS).toFixed(1);
+console.log(`[timelapse] ~${estimatedFrames.toLocaleString()} frames → ~${estimatedSecs}s of video`);
+console.log(`[timelapse] Output: ${OUT_PATH}`);
+
+// ── Canvas setup ──────────────────────────────────────────────────────────────
+
+const canvas = createCanvas(BOARD_W, BOARD_H);
+const ctx    = canvas.getContext('2d');
+
+// Fill background
+ctx.fillStyle = BG_HEX;
+ctx.fillRect(0, 0, BOARD_W, BOARD_H);
+
+// Watermark setup (drawn once, on top of every frame)
+const FONT_SIZE = Math.max(14, Math.round(22 / SCALE));
+
+function drawWatermark(frameCtx) {
+  if (!WATERMARK) return;
+  frameCtx.save();
+  frameCtx.font      = `bold ${FONT_SIZE}px sans-serif`;
+  frameCtx.fillStyle = 'rgba(255,255,255,0.18)';
+  frameCtx.textAlign = 'right';
+  frameCtx.fillText('Saint-Pixels', OUT_W - 10, OUT_H - 10);
+  frameCtx.restore();
+}
+
+// Output canvas (may be scaled down)
+let outCanvas, outCtx;
+if (SCALE === 1) {
+  outCanvas = canvas;
+  outCtx    = ctx;
+} else {
+  outCanvas = createCanvas(OUT_W, OUT_H);
+  outCtx    = outCanvas.getContext('2d');
+}
+
+// ── ffmpeg setup ──────────────────────────────────────────────────────────────
+
+// Pipe raw RGBA frames into ffmpeg
+// -f rawvideo: we supply uncompressed pixels
+// -pix_fmt rgba: matches canvas.toBuffer('raw')
+// -s WxH: frame dimensions
+// -r FPS: interpret incoming frames at this rate
+// -i pipe:0: read from stdin
+// -c:v libx264: H.264 compression
+// -pix_fmt yuv420p: widest player compatibility
+// -preset fast: good quality/speed tradeoff
+// -crf 18: near-lossless for colour accuracy
+// -movflags +faststart: puts metadata at front for web streaming
+
+const ffmpegArgs = [
+  '-y',                              // overwrite output without asking
+  '-f', 'rawvideo',
+  '-pix_fmt', 'rgba',
+  '-s', `${OUT_W}x${OUT_H}`,
+  '-r', String(FPS),
+  '-i', 'pipe:0',
+  '-c:v', 'libx264',
+  '-pix_fmt', 'yuv420p',
+  '-preset', 'fast',
+  '-crf', '18',
+  '-movflags', '+faststart',
+  OUT_PATH,
+];
+
+console.log(`\n[timelapse] Launching ffmpeg…`);
+const ffmpeg = spawn(FFMPEG_BIN, ffmpegArgs, { stdio: ['pipe', 'inherit', 'inherit'] });
+
+ffmpeg.on('error', (err) => {
+  if (err.code === 'ENOENT') {
+    console.error(
+      `\n[timelapse] ERROR: ffmpeg not found (tried: ${FFMPEG_BIN})\n` +
+      '  Install ffmpeg and ensure it is on your PATH,\n' +
+      '  or set the FFMPEG_PATH environment variable.\n'
+    );
+  } else {
+    console.error('[timelapse] ffmpeg error:', err);
+  }
+  process.exit(1);
+});
+
+ffmpeg.on('close', (code) => {
+  if (code !== 0) {
+    console.error(`\n[timelapse] ffmpeg exited with code ${code}`);
+    process.exit(code);
+  }
+  console.log(`\n[timelapse] ✓ Done! Saved to: ${OUT_PATH}`);
+});
+
+const ffmpegStdin = ffmpeg.stdin;
+
+// ── Progress tracking ─────────────────────────────────────────────────────────
+
+let frameCount    = 0;
+let eventCount    = 0;
+let frameAccum    = 0;          // fractional events-towards-next-frame accumulator
+let lastLogTime   = Date.now();
+
+function logProgress() {
+  const pct     = ((eventCount / total) * 100).toFixed(1);
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  process.stdout.write(
+    `\r[timelapse] ${pct}% — ${eventCount.toLocaleString()}/${total.toLocaleString()} events | ` +
+    `${frameCount.toLocaleString()} frames | ${elapsed}s elapsed   `
+  );
+}
+
+// ── Pixel colour helper ───────────────────────────────────────────────────────
+
+function normalizeColor(c) {
+  if (!c || c === 'erase') return null; // null = erase
+  const h = c.replace(/^#/, '');
+  if (/^[0-9a-fA-F]{6}$/.test(h)) return '#' + h;
+  if (/^[0-9a-fA-F]{3}$/.test(h)) return '#' + h.split('').map(x => x + x).join('');
+  return null;
+}
+
+// ── Write one frame to ffmpeg ─────────────────────────────────────────────────
+
+function writeFrame() {
+  let buf;
+  if (SCALE === 1) {
+    buf = outCanvas.toBuffer('raw');
+  } else {
+    // Scale down into outCanvas
+    outCtx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
+    buf = outCanvas.toBuffer('raw');
+  }
+
+  drawWatermark(outCtx);
+  // Re-export after watermark (only meaningful when SCALE !== 1, but harmless)
+  if (WATERMARK) {
+    buf = outCanvas.toBuffer('raw');
+    // Remove watermark from outCtx so next frame starts clean
+    outCtx.clearRect(0, OUT_H - FONT_SIZE * 2, OUT_W, FONT_SIZE * 2 + 10);
+    if (SCALE !== 1) {
+      outCtx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
+    }
+  }
+
+  const ok = ffmpegStdin.write(buf);
+  frameCount++;
+  return ok; // false = pipe buffer full (need to drain)
+}
+
+// ── Main render loop ──────────────────────────────────────────────────────────
+
+const startTime = Date.now();
+
+async function render() {
+  // Stream rows from SQLite — avoids loading all rows into memory at once
+  const stmt = db.prepare(query);
+
+  // We process row-by-row using better-sqlite3's iterator
+  const iter = stmt.iterate(...bindings);
+
+  // Drain-aware write loop using async/await + stream backpressure
+  const REPORT_INTERVAL_MS = 500;
+
+  for (const row of iter) {
+    const { x, y, color } = row;
+
+    // Paint pixel onto the full-resolution canvas
+    if (color === 'erase') {
+      ctx.clearRect(x, y, 1, 1);
+      ctx.fillStyle = BG_HEX;
+      ctx.fillRect(x, y, 1, 1);
+    } else {
+      const c = normalizeColor(color);
+      if (c) {
+        ctx.fillStyle = c;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+
+    eventCount++;
+    frameAccum += 1;
+
+    // Emit a frame whenever we've accumulated enough events
+    if (frameAccum >= EVENTS_PER_FRAME) {
+      frameAccum -= EVENTS_PER_FRAME;
+
+      const ok = writeFrame();
+
+      if (!ok) {
+        // ffmpeg's stdin buffer is full — wait for it to drain before continuing
+        await new Promise(resolve => ffmpegStdin.once('drain', resolve));
+      }
+    }
+
+    // Throttled progress logging
+    if (Date.now() - lastLogTime > REPORT_INTERVAL_MS) {
+      logProgress();
+      lastLogTime = Date.now();
+    }
+  }
+
+  // Flush the final partial frame (the last few pixels that didn't fill a frame)
+  if (frameAccum > 0) {
+    writeFrame();
+  }
+
+  logProgress();
+  process.stdout.write('\n');
+
+  const totalSecs = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(
+    `[timelapse] Render complete — ${frameCount.toLocaleString()} frames in ${totalSecs}s ` +
+    `(${(frameCount / totalSecs).toFixed(1)} fps throughput)`
+  );
+
+  // Close stdin — tells ffmpeg we're done sending frames
+  ffmpegStdin.end();
+}
+
+render().catch(err => {
+  console.error('\n[timelapse] Unexpected error:', err);
+  ffmpegStdin.destroy();
+  process.exit(1);
+});

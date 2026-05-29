@@ -79,6 +79,22 @@ function initializeDatabase(db) {
 
     CREATE INDEX IF NOT EXISTS idx_password_resets_token   ON password_resets(token);
     CREATE INDEX IF NOT EXISTS idx_password_resets_expires ON password_resets(expires_at);
+
+    -- Append-log of every pixel/erase event ever made — used by timelapse.js.
+    -- Unlike 'pixels' (which is an upsert table storing only current state),
+    -- this table grows indefinitely and is never pruned.
+    -- color = hex string (no #) OR the sentinel value 'erase'.
+    CREATE TABLE IF NOT EXISTS pixel_history (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      username  TEXT    NOT NULL,
+      x         INTEGER NOT NULL,
+      y         INTEGER NOT NULL,
+      color     TEXT    NOT NULL,
+      placed_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ph_placed_at ON pixel_history(placed_at);
+    CREATE INDEX IF NOT EXISTS idx_ph_username  ON pixel_history(username);
   `);
 
   // ── Column migrations (SQLite doesn't support IF NOT EXISTS on ALTER TABLE) ──
