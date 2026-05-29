@@ -958,23 +958,25 @@ function applyToolAtCell(x, y) {
     // Only update in-place when the hue is genuinely close (within 30°); otherwise
     // fall back to adding a new entry so completely novel colors still get recorded.
     const HUE_THRESHOLD = 30;
-    // Track the specific button updated by the eyedropper so setColor can mark
-    // exactly that one as selected — prevents two same-hex buttons both lighting up.
-    let eyedropperBtn = null;
+    // Collect every button updated by the eyedropper (both #palette and
+    // #fullscreen-palette mirror the same slot) so setColor can mark all of them
+    // selected at once.  The old "last wins" approach only marked the
+    // fullscreen-palette button, leaving the desktop palette button unselected.
+    const eyedropperBtns = [];
     if (bestIdx !== -1 && bestDist <= HUE_THRESHOLD) {
       // The exact color currently stored at the best slot — used to match DOM buttons precisely.
       const slotColor = normalizeHexColor(paletteColors[bestIdx].color);
       // Update paletteColors (source of truth) first
       paletteColors[bestIdx] = asPaletteEntry({ ...paletteColors[bestIdx], color: norm });
-      // Sync ONLY the buttons whose dataset.color exactly matches the slot being replaced.
-      // Prefer the fullscreen-palette button (visible on mobile) as the preferred one.
+      // Sync ALL buttons whose dataset.color exactly matches the slot being replaced
+      // (both the desktop #palette button and the mobile #fullscreen-palette button).
       document.querySelectorAll('#palette button, #fullscreen-palette button').forEach(btn => {
         if (normalizeHexColor(btn.dataset.color) === slotColor) {
           btn.style.background = norm;
           btn.dataset.color = norm;
           btn.title = norm.toUpperCase();
           // dataset.baseColor intentionally NOT updated — keeps the hue family anchor
-          eyedropperBtn = btn; // last updated btn wins (fullscreen-palette comes after #palette in DOM)
+          eyedropperBtns.push(btn);
         }
       });
     } else {
@@ -985,9 +987,24 @@ function applyToolAtCell(x, y) {
       }
     }
 
-    setColor(norm, eyedropperBtn);
+    // Mark all matched buttons selected; pass first as the "preferred" anchor so
+    // setColor's loop doesn't also try to search by hex (which could match wrong slots).
+    // Then manually select any remaining ones setColor didn't touch.
+    setColor(norm, eyedropperBtns[0] || null);
+    if (eyedropperBtns.length > 1) {
+      // setColor already cleared all .selected; re-apply to the rest
+      eyedropperBtns.forEach(btn => btn.classList.add('selected'));
+    }
     _eyedropperJustFired = true;
-    setTool('brush');
+    // Delay the tool switch on touch devices so the touchend that triggered the
+    // eyedropper pick has fully resolved before brush becomes active.
+    // Without this delay, the same touch gesture that picked the color could
+    // immediately place a pixel once the tool switches to brush.
+    if (window.matchMedia('(pointer: coarse)').matches) {
+      setTimeout(() => { setTool('brush'); _eyedropperJustFired = false; }, 320);
+    } else {
+      setTool('brush');
+    }
     redraw();
     return;
   }

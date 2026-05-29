@@ -1967,6 +1967,7 @@ header.flex {
   flex-shrink: 0;
   width: var(--lb-toggle-w);
   align-self: center;
+  margin-top: -20px;
   height: 64px;
   background: rgba(58, 58, 59, 0.97);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -2680,6 +2681,12 @@ header.flex {
       --tw-scale-z: 1;
     }
   }
+}
+
+/* Auth overlay must sit above the topbar (z-index 300) so the login/register
+   panel covers the full screen including the navigation bar on all viewports. */
+#authOverlay {
+  z-index: 400 !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
