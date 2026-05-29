@@ -2752,7 +2752,17 @@ header.flex {
   background: rgba(239, 68, 68, 0.18);
 }
 
-/* Fullscreen & Export PNG cursor fix */
+/* Global cursor: pointer for all interactive elements */
+button,
+[type="button"],
+[type="submit"],
+[type="reset"],
+a[href],
+label[for],
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]),
+select,
+.cursor-pointer,
 #fullscreen-btn,
 #export-png {
   cursor: pointer;
