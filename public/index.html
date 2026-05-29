@@ -582,51 +582,170 @@
   </div>
 
   <script src="/chat.js"></script>
-  <script>
-    document.getElementById('topbarRulesBtn').addEventListener('click', function () {
-      document.getElementById('rulesModal').style.display = 'grid';
-    });
-  </script>
 
+  <!-- ── Community Rules window (standalone — no connection to auth/tools) ── -->
+  <div id="sp-rules-window" style="
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(0,0,0,0.72);
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    pointer-events: auto;
+  ">
+    <div style="
+      width: min(460px, calc(100% - 24px));
+      background: #2e2e2f;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      pointer-events: auto;
+    ">
 
-  <!-- ── Rules modal ─────────────────────────────────────────────────────── -->
-  <div
-    id="rulesModal"
-    class="fixed inset-0 z-[20000] bg-black/80 grid place-items-center p-4"
-    style="display:none;"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="rulesModalTitle"
-  >
-    <div class="w-[min(480px,calc(100%-24px))] bg-[#2e2e2f] border border-white/10 rounded-3xl shadow-2xl p-7 grid gap-5">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-full bg-sky-500/20 border border-sky-400/40 flex items-center justify-center shrink-0">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <!-- Header -->
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="
+            width:36px; height:36px; border-radius:50%;
+            background:rgba(56,189,248,0.12);
+            border:1px solid rgba(56,189,248,0.35);
+            display:flex; align-items:center; justify-content:center; flex-shrink:0;
+          ">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <span style="font-size:1.1rem; font-weight:700; color:#f1f5f9;">Community Rules</span>
         </div>
-        <h3 id="rulesModalTitle" class="text-lg font-bold m-0 text-slate-100">Community Rules</h3>
+        <button id="sp-rules-close-x" type="button" style="
+          background:none; border:none; color:#94a3b8;
+          font-size:22px; line-height:1; padding:4px 6px; border-radius:8px;
+          transition:color 0.15s, background 0.15s; cursor:pointer;
+        " aria-label="Close rules">&times;</button>
       </div>
-      <p class="text-slate-400 text-sm m-0 leading-relaxed">By creating an account, you agree to follow these rules:</p>
-      <ul class="grid gap-3 m-0 p-0 list-none">
-        <li class="flex gap-3 text-sm text-slate-200">
-          <span class="text-sky-400 mt-0.5 shrink-0">•</span>
-          <span>Do not excessively try to bleach, erase, or use colors to remove another user's drawing.</span>
-        </li>
-        <li class="flex gap-3 text-sm text-slate-200">
-          <span class="text-sky-400 mt-0.5 shrink-0">•</span>
-          <span>No botting, automation, or unfair tools.</span>
-        </li>
-        <li class="flex gap-3 text-sm text-slate-200">
-          <span class="text-sky-400 mt-0.5 shrink-0">•</span>
-          <span>No excessive trolling, disruptive behavior, or intentionally ruining the experience for others.</span>
-        </li>
-      </ul>
-      <p class="text-slate-500 text-xs m-0 border-t border-white/8 pt-4">Failure to follow these rules may result in account restrictions or termination.</p>
-      <button
-        id="rulesModalClose"
-        type="button"
-        class="w-full px-4 py-2.5 rounded-xl border border-sky-400/60 bg-sky-500/20 text-white font-semibold hover:bg-sky-400/35 transition-colors text-sm"
-      >Got it</button>
+
+      <!-- Intro -->
+      <p style="margin:0; color:#94a3b8; font-size:0.85rem; line-height:1.6;">
+        By playing on Saint-Pixels, you agree to follow these community rules. Keep it creative and respectful!
+      </p>
+
+      <!-- Rules list -->
+      <div style="display:flex; flex-direction:column; gap:12px;">
+
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="
+            width:28px; height:28px; border-radius:50%; flex-shrink:0;
+            background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3);
+            display:flex; align-items:center; justify-content:center;
+            color:#38bdf8; font-size:0.75rem; font-weight:700; margin-top:1px;
+          ">1</div>
+          <div style="flex:1;">
+            <div style="color:#e2e8f0; font-size:0.875rem; font-weight:600; margin-bottom:2px;">Respect others' art</div>
+            <div style="color:#94a3b8; font-size:0.8rem; line-height:1.5;">Do not excessively bleach, erase, or overwrite another user's drawing.</div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="
+            width:28px; height:28px; border-radius:50%; flex-shrink:0;
+            background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3);
+            display:flex; align-items:center; justify-content:center;
+            color:#38bdf8; font-size:0.75rem; font-weight:700; margin-top:1px;
+          ">2</div>
+          <div style="flex:1;">
+            <div style="color:#e2e8f0; font-size:0.875rem; font-weight:600; margin-bottom:2px;">No cheating</div>
+            <div style="color:#94a3b8; font-size:0.8rem; line-height:1.5;">No botting, automation scripts, or unfair third-party tools.</div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="
+            width:28px; height:28px; border-radius:50%; flex-shrink:0;
+            background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3);
+            display:flex; align-items:center; justify-content:center;
+            color:#38bdf8; font-size:0.75rem; font-weight:700; margin-top:1px;
+          ">3</div>
+          <div style="flex:1;">
+            <div style="color:#e2e8f0; font-size:0.875rem; font-weight:600; margin-bottom:2px;">No griefing</div>
+            <div style="color:#94a3b8; font-size:0.8rem; line-height:1.5;">No excessive trolling, disruptive behavior, or intentionally ruining the experience for others.</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer note -->
+      <p style="margin:0; padding-top:16px; border-top:1px solid rgba(255,255,255,0.07); color:#64748b; font-size:0.75rem; line-height:1.5;">
+        Failure to follow these rules may result in account restrictions or termination.
+      </p>
+
+      <!-- Close button -->
+      <button id="sp-rules-close-btn" type="button" style="
+        width:100%; padding:10px 16px; border-radius:12px;
+        border:1px solid rgba(56,189,248,0.5);
+        background:rgba(56,189,248,0.12);
+        color:#fff; font-weight:600; font-size:0.875rem;
+        transition:background 0.15s; cursor:pointer;
+      ">Got it</button>
+
     </div>
   </div>
+
+  <script>
+    (function () {
+      var win   = document.getElementById('sp-rules-window');
+      var openBtn  = document.getElementById('topbarRulesBtn');
+      var closeX   = document.getElementById('sp-rules-close-x');
+      var closeBtn = document.getElementById('sp-rules-close-btn');
+
+      /* Also wire the auth-form "community rules" link to this window */
+      var authLink = document.getElementById('authRulesLink');
+
+      function openRules(e) {
+        if (e) { e.stopPropagation(); e.preventDefault(); }
+        win.style.display = 'flex';
+      }
+      function closeRules() {
+        win.style.display = 'none';
+      }
+
+      openBtn.addEventListener('click', openRules);
+      if (authLink) authLink.addEventListener('click', openRules);
+      closeX.addEventListener('click', closeRules);
+      closeBtn.addEventListener('click', closeRules);
+
+      /* Close on backdrop click */
+      win.addEventListener('click', function (e) {
+        if (e.target === win) closeRules();
+      });
+
+      /* Close on Escape */
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && win.style.display === 'flex') closeRules();
+      });
+
+      /* Hover style polish for close-x */
+      closeX.addEventListener('mouseenter', function () {
+        closeX.style.color = '#f1f5f9';
+        closeX.style.background = 'rgba(255,255,255,0.08)';
+      });
+      closeX.addEventListener('mouseleave', function () {
+        closeX.style.color = '#94a3b8';
+        closeX.style.background = 'none';
+      });
+
+      /* Hover style for Got it button */
+      closeBtn.addEventListener('mouseenter', function () {
+        closeBtn.style.background = 'rgba(56,189,248,0.25)';
+      });
+      closeBtn.addEventListener('mouseleave', function () {
+        closeBtn.style.background = 'rgba(56,189,248,0.12)';
+      });
+    })();
+  </script>
+
 </body>
 </html>
