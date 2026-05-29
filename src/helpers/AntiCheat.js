@@ -33,7 +33,7 @@ const _ipInFlight = new Set();
  * Base cooldown in ms — mirrors the per-user cooldown in cooldown.js.
  * Keep these in sync or import from a shared config if you add one.
  */
-const BASE_COOLDOWN_MS = 5_000;
+const BASE_COOLDOWN_MS = 3_000;
 
 /**
  * When 2+ distinct usernames are seen from the same IP within this window,
@@ -41,7 +41,7 @@ const BASE_COOLDOWN_MS = 5_000;
  */
 const MULTI_ACCOUNT_WINDOW_MS = 60_000;   // 1 minute lookback
 const MULTI_ACCOUNT_THRESHOLD = 2;        // ≥2 different usernames = suspicious
-const STRICT_COOLDOWN_MULTIPLIER = 3;     // 3× base = 15 s between pixels when flagged
+const STRICT_COOLDOWN_MULTIPLIER = 3;     // 3× base = 9 s between pixels when flagged
 
 /**
  * @param {import('better-sqlite3').Database} db

@@ -72,7 +72,7 @@ const PIXEL_HISTORY_KEY = 'sp_pixel_history';
 // Declared here (top of DOMContentLoaded) so clearToken(), updateAuthState(),
 // and checkVerifiedParam() can all reference it without a TDZ ReferenceError.
 const EMAIL_VERIFIED_KEY = 'sp_email_verified';
-const COOLDOWN_MS = 5000;
+const COOLDOWN_MS = 3000;
 /** Max zoom as UI scale (1 = 100%, 50 = 5000%) */
 const MAX_ZOOM_SCALE = 50;
 /** Slow OS key-repeat for arrow nudging (ms between steps while key is held) */
@@ -384,6 +384,12 @@ async function handleLogin(event) {
   const password = authPassword.value;
   if (!username || !password) {
     showAuthMessage('Enter username and password.');
+    return;
+  }
+
+  const authRulesCheck = document.getElementById('authRulesCheck');
+  if (!authRulesCheck || !authRulesCheck.checked) {
+    showAuthMessage('Please read and agree to the community rules.');
     return;
   }
 
@@ -1960,6 +1966,13 @@ function setAuthMode(mode) {
   // Show / hide email field (no flicker — driven by explicit state)
   if (authEmailLabel) authEmailLabel.style.display = isRegister ? '' : 'none';
 
+  // Show / hide rules checkbox (register only)
+  const rulesRow   = document.getElementById('authRulesRow');
+  const rulesCheck = document.getElementById('authRulesCheck');
+  if (rulesRow) rulesRow.style.display = isRegister ? '' : 'none';
+  // Uncheck when switching away from register so it resets cleanly
+  if (!isRegister && rulesCheck) rulesCheck.checked = false;
+
   // Update submit button label
   if (authSubmit) authSubmit.textContent = isRegister ? 'Create account' : 'Login';
 
@@ -2014,6 +2027,34 @@ function syncPasswordAutocomplete() {
 // Initialise to login mode
 setAuthMode('login');
 syncPasswordAutocomplete();
+
+// ─── Rules modal ─────────────────────────────────────────────────────────────
+const rulesModal     = document.getElementById('rulesModal');
+const rulesModalClose = document.getElementById('rulesModalClose');
+const authRulesLink  = document.getElementById('authRulesLink');
+
+function openRulesModal() {
+  if (rulesModal) rulesModal.style.display = 'grid';
+}
+function closeRulesModal() {
+  if (rulesModal) rulesModal.style.display = 'none';
+}
+
+if (authRulesLink)   authRulesLink.addEventListener('click', openRulesModal);
+if (rulesModalClose) rulesModalClose.addEventListener('click', closeRulesModal);
+
+// Close modal on backdrop click
+if (rulesModal) {
+  rulesModal.addEventListener('click', (e) => {
+    if (e.target === rulesModal) closeRulesModal();
+  });
+}
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && rulesModal && rulesModal.style.display === 'grid') {
+    closeRulesModal();
+  }
+});
 
 // ─── Email verification banner ───────────────────────────────────────────────
 const resendVerifyBtn = document.getElementById('resendVerifyBtn');

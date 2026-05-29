@@ -1,7 +1,7 @@
 /** Injected by initializeDatabase / server startup */
 let _db = null;
 
-const COOLDOWN_MS = 5000;
+const COOLDOWN_MS = 3000;
 
 /**
  * @param {import('better-sqlite3').Database} db
