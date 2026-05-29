@@ -1057,6 +1057,20 @@ function applyToolAtCell(x, y) {
 function placeFromKeyboard() {
   if (!currentUser) return;
   ensureBoardCursor();
+
+  // If the cursor wandered outside the board (panning into the void), snap it
+  // back to the nearest valid board pixel so Enter always lands somewhere.
+  cursorPosition = {
+    x: clamp(cursorPosition.x, 0, BOARD_WIDTH  - 1),
+    y: clamp(cursorPosition.y, 0, BOARD_HEIGHT - 1),
+  };
+
+  // 'none' and 'hand' are view-only tools — pressing Enter should place a pixel,
+  // so switch to brush first (same intent as any other keyboard-place action).
+  if (tool === 'none' || tool === 'hand') {
+    setTool('brush');
+  }
+
   applyToolAtCell(cursorPosition.x, cursorPosition.y);
 }
 
