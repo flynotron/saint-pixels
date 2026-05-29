@@ -80,6 +80,8 @@ if (hasFlag('--help') || hasFlag('-h')) {
 Usage: node timelapse.js [options]
 
   --db <path>        SQLite database file  (default: ./database.sqlite)
+  --json <path>      JSON pixel-history file instead of SQLite
+                     (array of {username,x,y,color,placed_at} objects)
   --out <path>       Output MP4            (default: ./timelapse.mp4)
   --fps <n>          Output framerate      (default: 30)
   --pps <n>          Pixel events per second of output (default: 200)
@@ -95,6 +97,7 @@ Usage: node timelapse.js [options]
 }
 
 const DB_PATH      = getArg('--db',  path.join(process.cwd(), 'database.sqlite'));
+const JSON_PATH    = getArg('--json', null);   // if set, read from JSON instead of SQLite
 const OUT_PATH     = getArg('--out', path.join(process.cwd(), 'timelapse.mp4'));
 const FPS          = Math.max(1, parseInt(getArg('--fps', '30'), 10));
 const PPS          = Math.max(1, parseInt(getArg('--pps', '200'), 10));
@@ -119,14 +122,19 @@ const EVENTS_PER_FRAME = PPS / FPS;
 
 let Database, createCanvas;
 
-try {
-  Database = require('better-sqlite3');
-} catch {
-  console.error(
-    '\n[timelapse] ERROR: better-sqlite3 is not installed.\n' +
-    '  Run:  npm install better-sqlite3\n'
-  );
-  process.exit(1);
+// better-sqlite3 is only required when reading from SQLite (no --json flag).
+// canvas is always required.
+if (!JSON_PATH) {
+  try {
+    Database = require('better-sqlite3');
+  } catch {
+    console.error(
+      '\n[timelapse] ERROR: better-sqlite3 is not installed.\n' +
+      '  Run:  npm install better-sqlite3\n' +
+      '  (Or use --json <path> to read from a JSON pixel-history file instead.)\n'
+    );
+    process.exit(1);
+  }
 }
 
 try {
@@ -140,22 +148,76 @@ try {
   process.exit(1);
 }
 
-// ── Database ──────────────────────────────────────────────────────────────────
+// ── Data source: JSON or SQLite ───────────────────────────────────────────────
+//
+// Both paths produce the same interface:
+//   total   — total number of pixel events to render
+//   getIter — zero-arg function that returns an iterable of
+//             { username, x, y, color, placed_at } objects, already sorted
+//             by placed_at ASC and filtered by --from / --to / --user.
 
-if (!fs.existsSync(DB_PATH)) {
-  console.error(`\n[timelapse] ERROR: database not found at: ${DB_PATH}\n`);
-  process.exit(1);
-}
+let total;
+let getIter;
 
-const db = new Database(DB_PATH, { readonly: true });
+if (JSON_PATH) {
+  // ── JSON mode ───────────────────────────────────────────────────────────────
+  if (!fs.existsSync(JSON_PATH)) {
+    console.error(`\n[timelapse] ERROR: JSON file not found at: ${JSON_PATH}\n`);
+    process.exit(1);
+  }
 
-// Check that pixel_history exists
-const tables = db.prepare(
-  "SELECT name FROM sqlite_master WHERE type='table' AND name='pixel_history'"
-).get();
+  let rawRows;
+  try {
+    const text = fs.readFileSync(JSON_PATH, 'utf8');
+    rawRows = JSON.parse(text);
+  } catch (err) {
+    console.error(`\n[timelapse] ERROR: Could not parse JSON file: ${err.message}\n`);
+    process.exit(1);
+  }
 
-if (!tables) {
-  console.error(`
+  if (!Array.isArray(rawRows)) {
+    console.error('\n[timelapse] ERROR: JSON file must contain a top-level array of pixel events.\n');
+    process.exit(1);
+  }
+
+  // Apply the same date/user filters that the SQLite path supports.
+  const fromTs = FROM_DATE ? Date.parse(FROM_DATE)              : null;
+  const toTs   = TO_DATE   ? Date.parse(TO_DATE + 'T23:59:59') : null;
+
+  if ((FROM_DATE && isNaN(fromTs)) || (TO_DATE && isNaN(toTs))) {
+    console.error('[timelapse] Invalid --from or --to date.');
+    process.exit(1);
+  }
+
+  let filtered = rawRows.filter(r => {
+    if (fromTs !== null && r.placed_at < fromTs) return false;
+    if (toTs   !== null && r.placed_at > toTs)   return false;
+    if (USER_FILTER && r.username !== USER_FILTER) return false;
+    return true;
+  });
+
+  // Sort ascending by placement time (the dump may already be sorted, but be safe).
+  filtered.sort((a, b) => a.placed_at - b.placed_at);
+
+  total   = filtered.length;
+  getIter = () => filtered; // array is already in memory — just return it
+
+} else {
+  // ── SQLite mode ─────────────────────────────────────────────────────────────
+  if (!fs.existsSync(DB_PATH)) {
+    console.error(`\n[timelapse] ERROR: database not found at: ${DB_PATH}\n`);
+    process.exit(1);
+  }
+
+  const db = new Database(DB_PATH, { readonly: true });
+
+  // Check that pixel_history exists
+  const tables = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='pixel_history'"
+  ).get();
+
+  if (!tables) {
+    console.error(`
 [timelapse] ERROR: The 'pixel_history' table does not exist in this database.
 
 The regular 'pixels' table only stores the CURRENT board state (upsert model).
@@ -197,43 +259,46 @@ HOW TO ADD pixel_history TO YOUR SERVER
 
 ─────────────────────────────────────────────────────────────────────────────
 `);
-  process.exit(1);
+    process.exit(1);
+  }
+
+  // ── Build query ─────────────────────────────────────────────────────────────
+  const conditions = [];
+  const bindings   = [];
+
+  if (FROM_DATE) {
+    const ts = Date.parse(FROM_DATE);
+    if (isNaN(ts)) { console.error(`[timelapse] Invalid --from date: ${FROM_DATE}`); process.exit(1); }
+    conditions.push('placed_at >= ?');
+    bindings.push(ts);
+  }
+  if (TO_DATE) {
+    const ts = Date.parse(TO_DATE + 'T23:59:59');
+    if (isNaN(ts)) { console.error(`[timelapse] Invalid --to date: ${TO_DATE}`); process.exit(1); }
+    conditions.push('placed_at <= ?');
+    bindings.push(ts);
+  }
+  if (USER_FILTER) {
+    conditions.push('username = ?');
+    bindings.push(USER_FILTER);
+  }
+
+  const WHERE = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+  const query = `SELECT username, x, y, color, placed_at FROM pixel_history ${WHERE} ORDER BY placed_at ASC`;
+
+  console.log('[timelapse] Counting events…');
+  const totalRow = db.prepare(`SELECT COUNT(*) AS n FROM pixel_history ${WHERE}`).get(...bindings);
+  total   = totalRow.n;
+  getIter = () => db.prepare(query).iterate(...bindings);
 }
-
-// ── Build query ───────────────────────────────────────────────────────────────
-
-const conditions = [];
-const bindings   = [];
-
-if (FROM_DATE) {
-  const ts = Date.parse(FROM_DATE);
-  if (isNaN(ts)) { console.error(`[timelapse] Invalid --from date: ${FROM_DATE}`); process.exit(1); }
-  conditions.push('placed_at >= ?');
-  bindings.push(ts);
-}
-if (TO_DATE) {
-  const ts = Date.parse(TO_DATE + 'T23:59:59');
-  if (isNaN(ts)) { console.error(`[timelapse] Invalid --to date: ${TO_DATE}`); process.exit(1); }
-  conditions.push('placed_at <= ?');
-  bindings.push(ts);
-}
-if (USER_FILTER) {
-  conditions.push('username = ?');
-  bindings.push(USER_FILTER);
-}
-
-const WHERE = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
-const query = `SELECT username, x, y, color, placed_at FROM pixel_history ${WHERE} ORDER BY placed_at ASC`;
-
-console.log('[timelapse] Counting events…');
-const totalRow = db.prepare(`SELECT COUNT(*) AS n FROM pixel_history ${WHERE}`).get(...bindings);
-const total    = totalRow.n;
 
 if (total === 0) {
   console.error('[timelapse] No pixel events found for the given filters. Nothing to render.');
   process.exit(1);
 }
 
+const sourceLabel = JSON_PATH ? `JSON file: ${JSON_PATH}` : `SQLite: ${DB_PATH}`;
+console.log(`[timelapse] Source: ${sourceLabel}`);
 console.log(`[timelapse] ${total.toLocaleString()} events | ${FPS} fps | ${PPS} pps | scale 1/${SCALE}`);
 const estimatedFrames = Math.ceil(total / EVENTS_PER_FRAME);
 const estimatedSecs   = (estimatedFrames / FPS).toFixed(1);
@@ -386,11 +451,9 @@ function writeFrame() {
 const startTime = Date.now();
 
 async function render() {
-  // Stream rows from SQLite — avoids loading all rows into memory at once
-  const stmt = db.prepare(query);
-
-  // We process row-by-row using better-sqlite3's iterator
-  const iter = stmt.iterate(...bindings);
+  // Stream rows from the data source — avoids loading all rows into memory at once
+  // for SQLite; for JSON the array is already in memory (inevitable for JSON files).
+  const iter = getIter();
 
   // Drain-aware write loop using async/await + stream backpressure
   const REPORT_INTERVAL_MS = 500;
