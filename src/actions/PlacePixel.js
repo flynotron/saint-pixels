@@ -68,7 +68,7 @@ class PlacePixel {
           `).run(session.username, x, y, safeColor, now);
         }
       } catch (err) {
-        console.error('Failed to store pixel:', err);
+        console.error('PIXEL WRITE FAILED:', err.message, err.code);
       }
     }
 

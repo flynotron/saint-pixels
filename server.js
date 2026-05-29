@@ -8,7 +8,12 @@ const crypto   = require('crypto');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 const app = express();
-
+app.get('/admin/dump-pixels', (req, res) => {
+  const secret = req.query.secret;
+  if (secret !== 'YOUR_SECRET_HERE') return res.status(403).send('Forbidden');
+  const pixels = db.prepare('SELECT * FROM pixels ORDER BY placed_at ASC').all();
+  res.json(pixels);
+});
 // Trust the first reverse-proxy hop so req.ip is the real client IP
 app.set('trust proxy', 1);
 
