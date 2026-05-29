@@ -388,12 +388,6 @@ async function handleLogin(event) {
     return;
   }
 
-  const authRulesCheck = document.getElementById('authRulesCheck');
-  if (!authRulesCheck || !authRulesCheck.checked) {
-    showAuthMessage('Please read and agree to the community rules.');
-    return;
-  }
-
   const captchaToken = getCaptchaToken();
   if (!captchaToken) {
     showAuthMessage('Please complete the captcha.');
@@ -436,6 +430,12 @@ async function handleRegister(event) {
   }
   if (!email) {
     showAuthMessage('Enter your email address.');
+    return;
+  }
+
+  const authRulesCheck = document.getElementById('authRulesCheck');
+  if (!authRulesCheck || !authRulesCheck.checked) {
+    showAuthMessage('Please read and agree to the community rules.');
     return;
   }
 
