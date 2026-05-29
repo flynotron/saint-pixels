@@ -58,6 +58,7 @@ const { initializeActions }      = require('./src/setup/actions.js');
 const { initializeDatabase, runMaintenance } = require('./src/setup/database.js');
 const { initializeSSE, broadcastSSE, setDb: setSseDb } = require('./src/setup/sse.js');
 const { initializeChat }         = require('./src/setup/chat.js');
+const { initializeTimelapse }    = require('./src/setup/timelapse.js');
 const { localBypassMiddleware }  = require('./src/helpers/localBypass.js'); // <-- Added
 
 // ── Local Bypass Middleware ───────────────────────────────────────────────────
@@ -373,6 +374,19 @@ initializeSSE(app, db, sseConnectionGuard);
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
 initializeChat(app, db, broadcastSSE, chatLimiter, chatHistoryLimiter);
+
+// ── Timelapse API: 4 requests / 10 min / IP ───────────────────────────────────
+// Timelapse renders are CPU-heavy (ffmpeg + canvas). Tight limit prevents a
+// single caller from queuing up dozens of jobs that would saturate the server.
+const timelapseLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 4,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => safeIp(req),
+  message: { error: 'Too many timelapse requests. Please wait before trying again.' },
+});
+initializeTimelapse(app, db, timelapseLimiter);
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  API ROUTES
