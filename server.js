@@ -497,8 +497,10 @@ app.post('/api/resend-verification', resendLimiter, async (req, res) => {
     db.prepare('INSERT INTO email_verifications (username, token, created_at, expires_at) VALUES (?, ?, ?, ?)')
       .run(session.username, token, now, now + 24 * 60 * 60 * 1000);
 
-    await sendVerificationEmail(row.email, session.username, token);
-    return res.json({ message: 'Verification email sent.' });
+    // force=true bypasses the in-process 60 s cooldown so an explicit resend
+    // always goes out, even if a registration email was sent moments earlier.
+    await sendVerificationEmail(row.email, session.username, token, true);
+    return res.json({ message: 'Verification email sent. Check your inbox (and Spam folder).' });
   } catch (err) {
     console.error('Resend verification error:', err);
     return res.status(500).json({ error: 'Could not send verification email.' });

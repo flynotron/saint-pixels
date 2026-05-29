@@ -69,6 +69,9 @@ const CUSTOM_PALETTE_KEY = 'sp_customPalette';
 const TOKEN_KEY = 'sp_token';
 const EVENT_KEY = 'sp_last_event';
 const PIXEL_HISTORY_KEY = 'sp_pixel_history';
+// Declared here (top of DOMContentLoaded) so clearToken(), updateAuthState(),
+// and checkVerifiedParam() can all reference it without a TDZ ReferenceError.
+const EMAIL_VERIFIED_KEY = 'sp_email_verified';
 const COOLDOWN_MS = 5000;
 /** Max zoom as UI scale (1 = 100%, 50 = 5000%) */
 const MAX_ZOOM_SCALE = 50;
@@ -2051,11 +2054,10 @@ if (resendVerifyBtn) {
   });
 }
 
-// Handle ?verified=1 redirect from email link
-// We store a flag in localStorage so the banner stays hidden even after
-// updateAuthState() re-fetches /api/me (which would otherwise overwrite the state).
-const EMAIL_VERIFIED_KEY = 'sp_email_verified';
-
+// Handle ?verified=1 redirect from email link.
+// checkVerifiedParam() writes to localStorage BEFORE updateAuthState() reads it,
+// so the banner is already dismissed when /api/me resolves.
+// (EMAIL_VERIFIED_KEY is declared at the top of DOMContentLoaded — see line 74.)
 (function checkVerifiedParam() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('verified') === '1') {
