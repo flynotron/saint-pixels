@@ -2668,7 +2668,7 @@ viewport.addEventListener("touchend", (e) => {
      let adjustedClientY = touch.clientY;
      if (!isIOS) {
        const radiusY = (touch.radiusY || 0) / dpr / vvScale;
-       adjustedClientY = touch.clientY + Math.min(radiusY, 8);
+       adjustedClientY = touch.clientY - Math.min(radiusY, 8);
      }
      const coords = getCanvasCoords(touch.clientX, adjustedClientY);
      applyToolAtCell(coords.x, coords.y);

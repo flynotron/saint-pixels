@@ -1607,7 +1607,7 @@ header.flex {
     align-items: center !important;
     justify-content: center !important;
     gap: 5px !important;
-    padding: 6px 10px 6px 62px !important;
+    padding: 6px 16px 6px 16px !important;
     box-sizing: border-box !important;
     border-radius: 0 !important;
     border: none !important;
