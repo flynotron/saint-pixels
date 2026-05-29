@@ -1739,13 +1739,11 @@ function moveAction(event) {
 function handleAction(event) {
   disarmKeyboardCursor();
   const { x, y } = getCanvasCoords(event.clientX, event.clientY);
-  // Mousemove keeps cursorPosition aligned with the pointer; arrow keys move it without moving the mouse.
-  // Paint where the overlay/cursor is, not necessarily under the hardware pointer.
-  if (cursorPosition == null) {
-    applyToolAtCell(x, y);
-    return;
-  }
-  applyToolAtCell(cursorPosition.x, cursorPosition.y);
+  // Always paint at the actual pointer position.
+  // cursorPosition is used for the keyboard/arrow-key workflow; relying on it
+  // here caused off-by-one placement on Android because touchmove jitter
+  // updated cursorPosition to a slightly wrong cell before touchend fired.
+  applyToolAtCell(x, y);
 }
 
 function stopAction() {
@@ -2671,6 +2669,12 @@ viewport.addEventListener("touchend", (e) => {
        adjustedClientY = touch.clientY - Math.min(radiusY, 8);
      }
      const coords = getCanvasCoords(touch.clientX, adjustedClientY);
+     // Snap cursorPosition to the exact tap location BEFORE placing.
+     // On Android, touchmove fires for tiny jitter during a tap and leaves
+     // cursorPosition at a slightly wrong cell. Without this snap, any code
+     // path that reads cursorPosition (e.g. handleAction) would place the
+     // pixel one cell off from where the finger actually landed.
+     cursorPosition = { x: coords.x, y: coords.y };
      applyToolAtCell(coords.x, coords.y);
   }
 });
