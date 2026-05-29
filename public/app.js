@@ -915,12 +915,14 @@ function applyToolAtCell(x, y) {
 
   if (tool === 'eyedropper') {
     const pixel = bufferCtx.getImageData(x, y, 1, 1).data;
-    const picked = pixel[3] === 0 ? '#000000' : rgbToHex(pixel[0], pixel[1], pixel[2]);
+    // FIX 1: Default to white if clicking an empty/transparent canvas area
+    const picked = pixel[3] === 0 ? '#ffffff' : rgbToHex(pixel[0], pixel[1], pixel[2]);
     const norm = normalizeHexColor(picked);
 
     // Find the closest existing palette entry by hue similarity and update it
     // in-place, rather than adding a new entry.
-    const [pH, pS] = hexToHsl(norm);
+    // FIX 2: Extract Lightness (pL) to distinguish between black and white
+    const [pH, pS, pL] = hexToHsl(norm);
 
     // Search paletteColors (source of truth) directly — avoids the dual-DOM
     // problem where #palette and #fullscreen-palette are separate button sets.
@@ -928,17 +930,28 @@ function applyToolAtCell(x, y) {
     // so picking a dark blue replaces the blue you last used, not a random one.
     let bestIdx = -1;
     let bestDist = Infinity;
+
     paletteColors.forEach((entry, i) => {
       // Always compare against the canonical base color stored in paletteColors
-      const base = normalizeHexColor(entry.color);
-      const [bH, bS] = hexToHsl(base);
+      const base = normalizeHexColor(entry.color);     
+      const [bH, bS, bL] = hexToHsl(base);
+      
       const dH = Math.min(Math.abs(pH - bH), 360 - Math.abs(pH - bH));
-      const dist = dH + Math.abs(pS - bS) * 0.3;
-      // Strictly-better distance wins outright; equal distance defers to the
-      // most-recently-used slot so the user always sees predictable behaviour.
-      const isBetter = dist < bestDist - 0.01;
-      const isTieWithRecent = Math.abs(dist - bestDist) <= 0.01 && i === lastUsedPaletteIdx;
-      if (isBetter || isTieWithRecent) { bestDist = dist; bestIdx = i; }
+      
+      // 1. Calculate the 3D HSL distance first
+      const dist = dH + Math.abs(pS - bS) * 0.3 + Math.abs(pL - bL) * 0.5;
+
+      // 2. Set your comparison epsilon (1.0 handles 0-100 Lightness values smoothly)
+      const EPSILON = 1.0;
+
+      // 3. Run your comparison checks safely using the computed dist
+      const isBetter = dist < bestDist - EPSILON;
+      const isTieWithRecent = Math.abs(dist - bestDist) <= EPSILON && i === lastUsedPaletteIdx;
+      
+      if (isBetter || isTieWithRecent) { 
+        bestDist = dist; 
+        bestIdx = i; 
+      }
     });
 
     // Only update in-place when the hue is genuinely close (within 30°); otherwise
