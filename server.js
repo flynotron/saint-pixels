@@ -45,31 +45,6 @@ app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 
 // ── Database & Helpers ────────────────────────────────────────────────────────
 const dbFile = process.env.DATABASE_PATH || path.join(__dirname, 'database.sqlite');
-const dbDir = path.dirname(dbPath);
-
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-
-const db = new sqlite3.Database(dbPath);
-
-// Export a promise that resolves when the DB is ready
-const dbReady = new Promise((resolve, reject) => {
-  db.serialize(() => {
-    // Run your schema creation here
-    db.run(`CREATE TABLE IF NOT EXISTS pixels (...)`, (err) => {
-      if (err) reject(err);
-      else resolve(db);
-    });
-  });
-});
-
-module.exports = { db, dbReady };
-
-async function startServer() {
-  await dbReady; // Wait for tables to exist before accepting traffic
-  app.listen(3000, () => console.log('Server running and DB ready!'));
-}
-startServer();
-module.exports = db;
 const db = new Database(dbFile);
 
 const { setDb: setSessionDb, createSession, closeSession, getSession } = require('./src/helpers/session.js');
