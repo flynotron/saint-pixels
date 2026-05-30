@@ -49,6 +49,10 @@ app.use((req, res, next) => {
         // own domains being explicitly allowlisted above, and our server-side
         // content sanitisation blocking script-shaped user input.
         "'unsafe-inline'",
+        // Hash of a known inline script injected by hCaptcha at runtime.
+        // Browsers that support hash-based allowlisting will use this instead
+        // of relying on 'unsafe-inline' alone for that specific block.
+        "'sha256-9UXr/1Pci7/z9eol8dlV9btiS46Z6Y8vY0nCbXdSr4I='",
       ],
       // Explicitly block inline event handlers (onsubmit, onclick attrs).
       // index.html no longer uses any, so this is safe.
