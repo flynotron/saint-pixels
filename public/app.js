@@ -1859,8 +1859,18 @@ function handleWheel(event) {
   
   offsetX = Math.round(mouseX - boardX * scale);
   offsetY = Math.round(mouseY - boardY * scale);
-  
+
   clampOffsets();
+
+  // If the user is panning at the same time (e.g. holding the middle mouse
+  // button while scrolling), the wheel just changed offsetX/Y so panStartX/Y
+  // is now stale. Re-anchor it to the post-zoom offset so the next mousemove
+  // delta is computed correctly and the view doesn't teleport.
+  if (isPanning) {
+    panStartX = event.clientX - offsetX;
+    panStartY = event.clientY - offsetY;
+  }
+
   zoomInput.value = Math.round(scale * 100);
   dispatchStateChange({ zoomLevel: Math.round(scale * 100) });
   
