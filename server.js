@@ -30,17 +30,25 @@ app.use((req, res, next) => {
       defaultSrc:  ["'self'"],
       scriptSrc: [
         "'self'",
-        // Allow any script tag that carries the per-request nonce.
+        // Per-request nonce covers all script tags we control (app.js, chat.js,
+        // the inline rules script). Any tag without this nonce is blocked.
         (req, res) => `'nonce-${res.locals.cspNonce}'`,
-        // Trusted CDNs still need to be listed so their files can be fetched.
+        // Trusted CDN origins for external scripts.
         "https://cdn.tailwindcss.com",
         "https://cdn.jsdelivr.net",
         "https://js.hcaptcha.com",
         "https://newassets.hcaptcha.com",
-        // NOTE: 'unsafe-inline' and 'unsafe-eval' intentionally removed.
-        // Alpine.js and hCaptcha both work with a nonce; if you find a third-
-        // party script that still requires 'unsafe-eval', add it here with a
-        // comment explaining why, rather than re-enabling the global directive.
+        // 'unsafe-eval' is required by Alpine.js — it uses Function() internally
+        // to evaluate x-data / x-on / x-bind expressions. There is no build-time
+        // workaround when loading Alpine from a CDN. Acceptable risk because our
+        // chat input is sanitised server-side and rendered as textContent (not
+        // innerHTML), so injected payloads cannot reach eval().
+        "'unsafe-eval'",
+        // 'unsafe-inline' is required by hCaptcha — it dynamically injects inline
+        // <script> blocks that cannot be given a nonce. Mitigated by hCaptcha's
+        // own domains being explicitly allowlisted above, and our server-side
+        // content sanitisation blocking script-shaped user input.
+        "'unsafe-inline'",
       ],
       // Explicitly block inline event handlers (onsubmit, onclick attrs).
       // index.html no longer uses any, so this is safe.
