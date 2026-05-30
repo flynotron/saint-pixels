@@ -2693,7 +2693,14 @@ header.flex {
    PIXEL RULER DOM LABELS
    ═══════════════════════════════════════════════════════════════════ */
 
-.sp-ruler-label {
+.brand-reddit:hover,
+.mob-reddit-btn:hover {
+  background-color: color-mix(in oklab, var(--color-orange-400) 15%, transparent) !important;
+  border-color: color-mix(in oklab, var(--color-orange-400) 80%, transparent) !important;
+}
+.brand-reddit:hover {
+  transform: translateY(-1px);
+}
   position: absolute;
   z-index: 9000;
   transform: translate(-50%, -50%);

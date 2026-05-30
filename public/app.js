@@ -1291,6 +1291,23 @@ function showVariationPicker(button, baseColor) {
     hslToHex(h, s, Math.min(100, l + 25)),
   ];
 
+  // Find which variant best matches the shade currently shown on the button.
+  // This makes double-clicking after picking a shade keep that shade highlighted.
+  const currentButtonColor = normalizeHexColor(button.dataset.color || baseColor);
+  let activeIdx = 2; // default to the base/middle swatch
+  let bestDist = Infinity;
+  variants.forEach((hex, i) => {
+    const norm = normalizeHexColor(hex);
+    if (norm === currentButtonColor) { activeIdx = i; bestDist = 0; return; }
+    // Fallback: pick closest by lightness distance if no exact match
+    if (bestDist > 0) {
+      const [,, li] = hexToHsl(hex);
+      const [,, lc] = hexToHsl(currentButtonColor);
+      const d = Math.abs(li - lc);
+      if (d < bestDist) { bestDist = d; activeIdx = i; }
+    }
+  });
+
   const picker = document.createElement('div');
   picker.className = 'variation-picker';
   picker.style.cssText = [
@@ -1312,8 +1329,9 @@ function showVariationPicker(button, baseColor) {
   variants.forEach(function(hex, i) {
     const swatch = document.createElement('button');
     swatch.className = 'variation-swatch';
-    const sz = i === 2 ? '36px' : '28px';
-    const bd = i === 2 ? '2px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.2)';
+    const isActive = i === activeIdx;
+    const sz = isActive ? '36px' : '28px';
+    const bd = isActive ? '2px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.2)';
     swatch.style.cssText = 'width:' + sz + ';height:' + sz + ';border-radius:6px;background:' + hex + ';border:' + bd + ';cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;';
     swatch.title = hex.toUpperCase();
 
@@ -1725,6 +1743,13 @@ function rulerRenderDOM() {
     label.style.top  = `${my}px`;
 
     viewport.appendChild(label);
+
+    // Forward wheel events on the ruler label to the canvas so the user can
+    // still zoom in/out when the cursor happens to be over a ruler widget.
+    label.addEventListener('wheel', (e) => {
+      e.stopPropagation();
+      handleWheel(e);
+    }, { passive: false });
   });
 
   // Trash click handler
@@ -2994,7 +3019,7 @@ viewport.addEventListener("touchend", (e) => {
           
           // Using clean Base64 with no quotes inside url() ensures it never breaks HTML rendering
           const styleRule = isErase
-            ? `background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHJlY3Qgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2IiBmaWxsPSJ3aGl0ZSIgcng9IjIiLz48cGF0aCBkPSJNNCA0bDggOE0xMiA0TDQgMTIiIHN0cm9rZT0iI2VmNDQ0NCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=); background-size: cover;`
+            ? `background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHJlY3Qgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2IiBmaWxsPSIjMWUyOTNiIiByeD0iMiIvPjxwYXRoIGQ9Ik00IDRsOCA4TTEyIDRMNCAxMiIgc3Ryb2tlPSIjZWY0NDQ0IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==); background-size: cover;`
             : `background: ${normalizeHexColor(String(p.color || '#888'))};`;
             
           const tooltipText = isErase 
