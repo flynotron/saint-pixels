@@ -1135,12 +1135,21 @@ function broadcastEvent(event) {
         if (res.ok) {
           window.dispatchEvent(new CustomEvent('sp-pixel-placed'));
         } else {
-          // Non-2xx = pixel was NOT saved (e.g. auth expiry, server-side
-          // cooldown race). Log it so the issue is diagnosable.
+          // Non-2xx = pixel was NOT saved (e.g. server-side cooldown race or IP
+          // anti-cheat rejection). Roll back the client state so the cooldown
+          // is not wasted and the ghost pixel doesn't stay on screen.
           res.json().then(data => {
             console.warn('[sp] pixel save failed:', res.status, data?.error);
+            // Rollback: clear our local cooldown timestamp so the user can retry
+            lastPlaceAt = 0;
+            // Erase the optimistically-painted pixel from the buffer
+            paintPixel(event.x, event.y, event.size || 1, 'eraser', null);
+            redraw();
           }).catch(() => {
             console.warn('[sp] pixel save failed:', res.status);
+            lastPlaceAt = 0;
+            paintPixel(event.x, event.y, event.size || 1, 'eraser', null);
+            redraw();
           });
         }
       }).catch(err => {
@@ -1823,6 +1832,8 @@ function startAction(event) {
 
   // Start a long-press timer — if the user holds left-click without moving,
   // switch into pan mode after LONG_PRESS_PAN_DELAY_MS milliseconds.
+  // We do NOT place a pixel yet; we wait to see whether this becomes a pan
+  // or a normal click (resolved in endAction / stopAction).
   _longPressAnchorX = event.clientX;
   _longPressAnchorY = event.clientY;
   _longPressPanTimer = setTimeout(() => {
@@ -1835,19 +1846,25 @@ function startAction(event) {
   }, LONG_PRESS_PAN_DELAY_MS);
 
   isMouseDown = true;
-  handleAction(event);
+  // Pixel placement is deferred to endAction so a long-press pan never
+  // consumes the cooldown. The pixel is drawn on mouseup (short click).
 }
 
 function moveAction(event) {
   // Update hover crosshair labels
   updateCoords(event);
 
-  // Cancel the long-press-to-pan timer if the pointer drifted too far
+  // Cancel the long-press-to-pan timer if the pointer drifted too far.
+  // Once cancelled by movement this becomes a normal draw drag — fire
+  // handleAction so the first dragged pixel isn't skipped.
   if (_longPressPanTimer !== null) {
     const dx = event.clientX - _longPressAnchorX;
     const dy = event.clientY - _longPressAnchorY;
     if (dx * dx + dy * dy > LONG_PRESS_MOVE_THRESHOLD * LONG_PRESS_MOVE_THRESHOLD) {
       cancelLongPressPan();
+      if (isMouseDown && !isPanning) {
+        handleAction(event);
+      }
     }
   }
 
@@ -1875,8 +1892,16 @@ function handleAction(event) {
   applyToolAtCell(x, y);
 }
 
-function stopAction() {
+function stopAction(event) {
+  // If the long-press timer is still pending, this was a short click (not a pan).
+  // Cancel the timer and place the pixel now.
+  const wasShortClick = _longPressPanTimer !== null;
   cancelLongPressPan();
+
+  if (wasShortClick && isMouseDown && !isPanning) {
+    handleAction(event);
+  }
+
   isMouseDown = false;
 }
 
@@ -1952,7 +1977,13 @@ function handlePanEnd() {
 }
 
 function endAction(event) {
+  const wasShortClick = _longPressPanTimer !== null;
   cancelLongPressPan();
+  
+  if (wasShortClick && isMouseDown && !isPanning) {
+    handleAction(event);
+  }
+
   isMouseDown = false;
   if (isPanning) {
     isPanning = false;
