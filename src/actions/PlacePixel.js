@@ -124,9 +124,16 @@ class PlacePixel {
     // (1 920 × 1 080 = ~2 M) rather than growing without limit as an append log.
     if (_db) {
       try {
-        const { x, y, color } = req.body;
-        if (typeof x === 'number' && typeof y === 'number' && typeof color === 'string') {
-          const safeColor = color.replace(/[^0-9a-fA-F#]/g, '').slice(0, 7);
+        // Coerce x/y to integers — body-parser may deliver them as strings if
+        // Content-Type is wrong, which would silently skip the write below.
+        const x = parseInt(req.body.x, 10);
+        const y = parseInt(req.body.y, 10);
+        const color = typeof req.body.color === 'string' ? req.body.color : '';
+        if (!isNaN(x) && !isNaN(y) && color) {
+          // Strip everything except hex digits and #, then drop any leading #
+          // so the stored value is always a bare 6-char hex (e.g. "ff0000").
+          const safeColor = color.replace(/[^0-9a-fA-F#]/g, '').replace(/^#+/, '').slice(0, 6);
+          if (safeColor.length !== 6) throw new Error(`Invalid color value: "${color}"`);
           const now = Date.now();
           _db.prepare(`
             INSERT OR REPLACE INTO pixels (username, x, y, color, placed_at)
@@ -139,16 +146,25 @@ class PlacePixel {
           `).run(session.username, x, y, safeColor, now);
           // Mirror the same event to the JSON history file for timelapse --json.
           appendToJsonHistory({ username: session.username, x, y, color: safeColor, placed_at: now });
+          // Broadcast uses the same sanitised, #-prefixed color so SSE clients
+          // and the DB are always consistent.
+          _broadcast({ type: 'pixel', x, y, color: '#' + safeColor, user: session.username });
+          return res.json({ success: true });
+        } else {
+          return res.status(400).json({ error: 'Invalid pixel coordinates or color.' });
         }
       } catch (err) {
         console.error('PIXEL WRITE FAILED:', err.message, err.code);
+        return res.status(500).json({ error: 'Failed to save pixel.' });
       }
     }
 
+    // _db not available — broadcast anyway so other clients still see the pixel,
+    // but the pixel won't survive a reload.
     const safeColor = typeof req.body.color === 'string'
-      ? req.body.color.replace(/[^0-9a-fA-F#]/g, '').slice(0, 7)
+      ? req.body.color.replace(/[^0-9a-fA-F#]/g, '').replace(/^#+/, '').slice(0, 6)
       : '';
-    _broadcast({ type: 'pixel', x: req.body.x, y: req.body.y, color: safeColor, user: session.username });
+    _broadcast({ type: 'pixel', x: req.body.x, y: req.body.y, color: '#' + safeColor, user: session.username });
 
     return res.json({ success: true });
   }
@@ -172,8 +188,11 @@ class PlacePixel {
 
     if (_db) {
       try {
-        const { x, y } = req.body;
-        if (typeof x === 'number' && typeof y === 'number') {
+        // Coerce x/y to integers — same guard as execute() so string-typed
+        // body values don't silently bypass the DB write.
+        const x = parseInt(req.body.x, 10);
+        const y = parseInt(req.body.y, 10);
+        if (!isNaN(x) && !isNaN(y)) {
           const now = Date.now();
           // Upsert the erase sentinel — same bounded-table guarantee as pixel placement.
           _db.prepare(`
@@ -203,7 +222,7 @@ class PlacePixel {
     }
 
     // Broadcast erase event to all SSE clients
-    _broadcast({ type: 'erase', x: req.body.x, y: req.body.y, user: session.username });
+    _broadcast({ type: 'erase', x: parseInt(req.body.x, 10), y: parseInt(req.body.y, 10), user: session.username });
 
     return res.json({ success: true });
   }

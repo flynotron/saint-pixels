@@ -1099,9 +1099,11 @@ function broadcastEvent(event) {
     const token = getStoredToken();
     if (token) {
       const endpoint = event.tool === 'eraser' ? '/api/erase' : '/api/pixel';
+      // Coerce x/y to integers — the server guard uses parseInt() but sending
+      // floats can cause subtle mismatches on fractional zoom coords.
       const payload = event.tool === 'eraser'
-        ? { x: event.x, y: event.y }
-        : { x: event.x, y: event.y, color: event.color };
+        ? { x: Math.round(event.x), y: Math.round(event.y) }
+        : { x: Math.round(event.x), y: Math.round(event.y), color: event.color };
       fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -1109,9 +1111,22 @@ function broadcastEvent(event) {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(payload)
-      }).then(() => {
-        window.dispatchEvent(new CustomEvent('sp-pixel-placed'));
-      }).catch(() => { /* fire-and-forget; local paint already happened */ });
+      }).then(res => {
+        if (res.ok) {
+          window.dispatchEvent(new CustomEvent('sp-pixel-placed'));
+        } else {
+          // Non-2xx = pixel was NOT saved (e.g. auth expiry, server-side
+          // cooldown race). Log it so the issue is diagnosable.
+          res.json().then(data => {
+            console.warn('[sp] pixel save failed:', res.status, data?.error);
+          }).catch(() => {
+            console.warn('[sp] pixel save failed:', res.status);
+          });
+        }
+      }).catch(err => {
+        // Network error — pixel visible locally but not persisted to server.
+        console.warn('[sp] pixel save network error:', err.message);
+      });
     }
   }
   if (event.type === 'clear') {
