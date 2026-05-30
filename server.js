@@ -13,18 +13,34 @@ const app = express();
 app.set('trust proxy', 1);
 
 // ── Security headers ──────────────────────────────────────────────────────────
-app.use(helmet({
-  contentSecurityPolicy: {
+// CSP is applied per-request so we can embed a fresh cryptographic nonce on
+// every response. The nonce is injected into the HTML (replacing the
+// __CSP_NONCE__ placeholder in index.html) and into the CSP header, meaning
+// only script tags that carry that exact nonce value are allowed to execute.
+// This eliminates the need for 'unsafe-inline' and 'unsafe-eval'.
+app.use((req, res, next) => {
+  // Generate a fresh 128-bit nonce for every request.
+  res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+  next();
+});
+
+app.use((req, res, next) => {
+  helmet.contentSecurityPolicy({
     directives: {
       defaultSrc:  ["'self'"],
       scriptSrc: [
         "'self'",
+        // Allow any script tag that carries the per-request nonce.
+        (req, res) => `'nonce-${res.locals.cspNonce}'`,
+        // Trusted CDNs still need to be listed so their files can be fetched.
         "https://cdn.tailwindcss.com",
         "https://cdn.jsdelivr.net",
         "https://js.hcaptcha.com",
         "https://newassets.hcaptcha.com",
-        "'unsafe-inline'",
-        "'unsafe-eval'",
+        // NOTE: 'unsafe-inline' and 'unsafe-eval' intentionally removed.
+        // Alpine.js and hCaptcha both work with a nonce; if you find a third-
+        // party script that still requires 'unsafe-eval', add it here with a
+        // comment explaining why, rather than re-enabling the global directive.
       ],
       // Explicitly block inline event handlers (onsubmit, onclick attrs).
       // index.html no longer uses any, so this is safe.
@@ -36,8 +52,8 @@ app.use(helmet({
       fontSrc:    ["'self'"],
       upgradeInsecureRequests: null,
     },
-  },
-}));
+  })(req, res, next);
+});
 
 // ── Body parsing — hard cap to blunt large-payload floods ────────────────────
 app.use(express.json({ limit: '10kb' }));
@@ -93,6 +109,14 @@ app.get('/', indexLimiter, (req, res) => {
   if (!cachedIndexHtml) return res.status(500).send('Server error.');
   try {
     let html = cachedIndexHtml.replace('__VITE_HCAPTCHA_SITEKEY__', process.env.HCAPTCHA_SITEKEY || '');
+
+    // Inject the per-request CSP nonce into every <script> tag.
+    // In index.html, add nonce="__CSP_NONCE__" to each <script> tag, e.g.:
+    //   <script nonce="__CSP_NONCE__" src="..."></script>
+    //   <script nonce="__CSP_NONCE__">/* inline alpine init */</script>
+    // This placeholder is replaced here with the real nonce value, which must
+    // match what the helmet CSP middleware emitted in res.locals.cspNonce.
+    html = html.replaceAll('__CSP_NONCE__', res.locals.cspNonce);
 
     // Inject bypass flag if middleware detected a private IP + MOBILE_DEBUG=true
     if (req.localBypassUser) {

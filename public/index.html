@@ -17,9 +17,9 @@
   <meta name="twitter:title" content="Saint-Pixels — Multiplayer Pixel Canvas Game">
   <meta name="twitter:description" content="A real-time multiplayer pixel canvas game where players collaborate or compete to create massive online artworks.">
   <!-- <meta name="twitter:image" content="https://www.saint-pixels.org/social-preview.png"> -->
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
-  <script type="module" src="/app.js"></script>
+  <script nonce="__CSP_NONCE__" defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script nonce="__CSP_NONCE__" src="https://js.hcaptcha.com/1/api.js" async defer></script>
+  <script nonce="__CSP_NONCE__" type="module" src="/app.js"></script>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/chat.css">
 </head>
@@ -594,7 +594,7 @@
     </div>
   </div>
 
-  <script src="/chat.js"></script>
+  <script nonce="__CSP_NONCE__" src="/chat.js"></script>
 
   <!-- ── Community Rules window (standalone — no connection to auth/tools) ── -->
   <div id="sp-rules-window" style="
@@ -707,7 +707,7 @@
     </div>
   </div>
 
-  <script>
+  <script nonce="__CSP_NONCE__">
     (function () {
       var win   = document.getElementById('sp-rules-window');
       var openBtn  = document.getElementById('topbarRulesBtn');

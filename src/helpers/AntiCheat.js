@@ -68,6 +68,30 @@ function setDb(db) {
     CREATE INDEX IF NOT EXISTS idx_ip_pixel_log_ip_time
       ON ip_pixel_log(ip, placed_at);
   `);
+
+  // ── Scheduled cleanup — runs once at startup then every 10 minutes ──────────
+  // Deletes ip_pixel_log rows older than 2× MULTI_ACCOUNT_WINDOW_MS (2 min)
+  // and ip_cooldowns rows idle for more than 1 hour.
+  // Deterministic schedule replaces the old probabilistic inline pruning,
+  // preventing the table from growing unboundedly under sustained traffic.
+  const IDLE_COOLDOWN_CUTOFF_MS = 60 * 60 * 1000; // 1 hour
+  function runAntiCheatCleanup() {
+    try {
+      const now = Date.now();
+      const logCutoff      = now - MULTI_ACCOUNT_WINDOW_MS * 2;
+      const cooldownCutoff = now - IDLE_COOLDOWN_CUTOFF_MS;
+      const logDel = db.prepare('DELETE FROM ip_pixel_log WHERE placed_at     < ?').run(logCutoff);
+      const ipDel  = db.prepare('DELETE FROM ip_cooldowns WHERE last_pixel_at < ?').run(cooldownCutoff);
+      const total  = logDel.changes + ipDel.changes;
+      if (total > 0) {
+        console.log(`[AntiCheat] Cleanup: removed ${logDel.changes} log rows, ${ipDel.changes} idle cooldown rows.`);
+      }
+    } catch (err) {
+      console.error('[AntiCheat] Cleanup error:', err);
+    }
+    setTimeout(runAntiCheatCleanup, 10 * 60 * 1000); // reschedule in 10 min
+  }
+  runAntiCheatCleanup();
 }
 
 /**
@@ -136,12 +160,7 @@ function recordIp(ip, username) {
     'INSERT INTO ip_pixel_log (ip, username, placed_at) VALUES (?, ?, ?)'
   ).run(ip, username, now);
 
-  // Prune old log entries opportunistically (1-in-20 chance) to keep the table small
-  if (Math.random() < 0.05) {
-    _db.prepare(
-      'DELETE FROM ip_pixel_log WHERE placed_at < ?'
-    ).run(now - MULTI_ACCOUNT_WINDOW_MS * 2);
-  }
+  // Pruning is handled by the scheduled job started in setDb() — no inline work here.
 }
 
 /**
