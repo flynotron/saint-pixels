@@ -55,6 +55,7 @@ This reads `./database.sqlite`, renders all pixel history, and saves `./timelaps
 | `--scale <n>` | `1` | Downscale factor — `2` renders at 960×540 (faster, less RAM) |
 | `--bg <hex>` | `2e2e2f` | Background fill colour (no `#` needed) |
 | `--no-watermark` | — | Remove the "Saint-Pixels" text overlay |
+| `--crop <x0,y0,x1,y1>` | — | Crop output to the rectangle from top-left `(x0,y0)` to bottom-right `(x1,y1)` in board pixels (e.g. `0,0,1000,1000`) |
 | `--help` | — | Print usage and exit |
 
 ---
@@ -94,6 +95,16 @@ node timelapse.js --user flynotron --out flynotron.mp4
 **No watermark, custom background:**
 ```bash
 node timelapse.js --no-watermark --bg 1a1a2e
+```
+
+**Crop to a specific region of the board:**
+```bash
+node timelapse.js --crop 0,0,1000,1000
+```
+
+**Crop and scale together** — coordinates are in board pixels, scale is applied after:
+```bash
+node timelapse.js --crop 200,100,1200,700 --scale 2 --out cropped.mp4
 ```
 
 **Read from a JSON history file instead of SQLite:**

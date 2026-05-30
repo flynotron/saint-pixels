@@ -24,6 +24,14 @@
  *                       2 = render at 960×540 (half res, much faster)
  *   --bg <hex>          Background fill colour                  (default: 2e2e2f)
  *   --no-watermark      Suppress the "Saint-Pixels" text overlay
+ *   --crop <x0,y0,x1,y1>
+ *                       Crop the rendered output to the rectangle defined by
+ *                       top-left corner (x0,y0) and bottom-right corner (x1,y1).
+ *                       Both corners are in full-resolution board pixels.
+ *                       e.g. --crop 0,0,1000,1000  renders only the top-left
+ *                       1000×1000 region of the board.
+ *                       The crop is applied after --scale, so the final video
+ *                       dimensions will be ceil(width/scale) × ceil(height/scale).
  *   --help              Print this help and exit
  *
  * REQUIREMENTS
@@ -91,6 +99,10 @@ Usage: node timelapse.js [options]
   --scale <n>        Downscale factor      (default: 1, use 2 for half-res)
   --bg <hex>         Background colour     (default: 2e2e2f)
   --no-watermark     Disable text overlay
+  --crop <x0,y0,x1,y1>
+                     Crop the output to a rectangle defined by two corners:
+                     top-left (x0,y0) → bottom-right (x1,y1).
+                     e.g. --crop 0,0,1000,1000
   --help             Show this help
 `.trim());
   process.exit(0);
@@ -109,11 +121,48 @@ const BG_HEX       = '#' + getArg('--bg', '2e2e2f').replace(/^#/, '');
 const WATERMARK    = !hasFlag('--no-watermark');
 const FFMPEG_BIN   = process.env.FFMPEG_PATH || 'ffmpeg';
 
+// ── Crop option ───────────────────────────────────────────────────────────────
+// --crop x0,y0,x1,y1  — board-pixel coordinates (before scaling).
+// x0,y0 = top-left corner; x1,y1 = bottom-right corner (exclusive).
+// Defaults to the full board.
+
+const CROP_ARG = getArg('--crop', null);
+let CROP_X0 = 0, CROP_Y0 = 0, CROP_X1, CROP_Y1;  // X1/Y1 set after BOARD_W/H are defined
+
+if (CROP_ARG) {
+  const parts = CROP_ARG.split(',').map(Number);
+  if (parts.length !== 4 || parts.some(isNaN)) {
+    console.error('[timelapse] --crop must be four comma-separated integers: x0,y0,x1,y1');
+    process.exit(1);
+  }
+  [CROP_X0, CROP_Y0, CROP_X1, CROP_Y1] = parts;
+  if (CROP_X0 >= CROP_X1 || CROP_Y0 >= CROP_Y1) {
+    console.error('[timelapse] --crop: x0 must be < x1 and y0 must be < y1');
+    process.exit(1);
+  }
+}
+
 // Canvas dimensions
 const BOARD_W = 1920;
 const BOARD_H = 1080;
-const OUT_W   = Math.round(BOARD_W / SCALE);
-const OUT_H   = Math.round(BOARD_H / SCALE);
+
+// Finalise crop bounds now that board size is known, then clamp to board.
+if (!CROP_ARG) {
+  CROP_X1 = BOARD_W;
+  CROP_Y1 = BOARD_H;
+}
+CROP_X0 = Math.max(0, Math.min(CROP_X0, BOARD_W - 1));
+CROP_Y0 = Math.max(0, Math.min(CROP_Y0, BOARD_H - 1));
+CROP_X1 = Math.max(CROP_X0 + 1, Math.min(CROP_X1, BOARD_W));
+CROP_Y1 = Math.max(CROP_Y0 + 1, Math.min(CROP_Y1, BOARD_H));
+
+const CROP_W = CROP_X1 - CROP_X0;   // crop width  in board pixels
+const CROP_H = CROP_Y1 - CROP_Y0;   // crop height in board pixels
+const CROP_ENABLED = CROP_ARG !== null;
+
+// Output dimensions: scale is applied to the crop region (or full board if no crop).
+const OUT_W   = Math.round(CROP_W / SCALE);
+const OUT_H   = Math.round(CROP_H / SCALE);
 
 // Events-per-frame (may be fractional — we accumulate)
 const EVENTS_PER_FRAME = PPS / FPS;
@@ -300,6 +349,9 @@ if (total === 0) {
 const sourceLabel = JSON_PATH ? `JSON file: ${JSON_PATH}` : `SQLite: ${DB_PATH}`;
 console.log(`[timelapse] Source: ${sourceLabel}`);
 console.log(`[timelapse] ${total.toLocaleString()} events | ${FPS} fps | ${PPS} pps | scale 1/${SCALE}`);
+if (CROP_ENABLED) {
+  console.log(`[timelapse] Crop: (${CROP_X0},${CROP_Y0}) → (${CROP_X1},${CROP_Y1})  [${CROP_W}×${CROP_H} board px → ${OUT_W}×${OUT_H} output px]`);
+}
 const estimatedFrames = Math.ceil(total / EVENTS_PER_FRAME);
 const estimatedSecs   = (estimatedFrames / FPS).toFixed(1);
 console.log(`[timelapse] ~${estimatedFrames.toLocaleString()} frames → ~${estimatedSecs}s of video`);
@@ -327,12 +379,14 @@ function drawWatermark(frameCtx) {
   frameCtx.restore();
 }
 
-// Output canvas (may be scaled down)
+// Output canvas (may be scaled down and/or cropped)
 let outCanvas, outCtx;
-if (SCALE === 1) {
+if (SCALE === 1 && !CROP_ENABLED) {
+  // Fast path: no transformation needed — write the main canvas directly.
   outCanvas = canvas;
   outCtx    = ctx;
 } else {
+  // A separate output canvas is needed for scaling and/or cropping.
   outCanvas = createCanvas(OUT_W, OUT_H);
   outCtx    = outCanvas.getContext('2d');
 }
@@ -422,22 +476,33 @@ function normalizeColor(c) {
 
 function writeFrame() {
   let buf;
-  if (SCALE === 1) {
+  if (SCALE === 1 && !CROP_ENABLED) {
+    // Fast path: no transform — use the main canvas buffer directly.
     buf = outCanvas.toBuffer('raw');
   } else {
-    // Scale down into outCanvas
-    outCtx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
+    // drawImage(src, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+    // Source rect  = the crop region on the full-res board canvas.
+    // Dest rect    = the full output canvas (handles both crop and scale).
+    outCtx.drawImage(
+      canvas,
+      CROP_X0, CROP_Y0, CROP_W, CROP_H,  // source: crop window
+      0,       0,       OUT_W,  OUT_H      // dest:   scaled output
+    );
     buf = outCanvas.toBuffer('raw');
   }
 
   drawWatermark(outCtx);
-  // Re-export after watermark (only meaningful when SCALE !== 1, but harmless)
+  // Re-export after watermark (only meaningful when SCALE !== 1 or crop is on, but harmless)
   if (WATERMARK) {
     buf = outCanvas.toBuffer('raw');
     // Remove watermark from outCtx so next frame starts clean
     outCtx.clearRect(0, OUT_H - FONT_SIZE * 2, OUT_W, FONT_SIZE * 2 + 10);
-    if (SCALE !== 1) {
-      outCtx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
+    if (SCALE !== 1 || CROP_ENABLED) {
+      outCtx.drawImage(
+        canvas,
+        CROP_X0, CROP_Y0, CROP_W, CROP_H,
+        0,       0,       OUT_W,  OUT_H
+      );
     }
   }
 
