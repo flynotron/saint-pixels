@@ -155,6 +155,14 @@ let isPanning = false;
 let panStartX = 0;
 let panStartY = 0;
 let dragStart = null;
+/** Long-press-to-pan: timer ID and anchor coords for the pending long press */
+let _longPressPanTimer = null;
+let _longPressAnchorX = 0;
+let _longPressAnchorY = 0;
+/** px of movement allowed before the long-press is cancelled */
+const LONG_PRESS_MOVE_THRESHOLD = 6;
+/** ms to hold before panning starts */
+const LONG_PRESS_PAN_DELAY_MS = 400;
 let gridEnabled = true;
 let tool = 'brush';
 /** Set to true when the eyedropper fires on mobile so the same touchend that
@@ -1793,6 +1801,13 @@ function updateLiveCount(count) {
   dispatchStateChange({ liveCount: count });
 }
 
+function cancelLongPressPan() {
+  if (_longPressPanTimer !== null) {
+    clearTimeout(_longPressPanTimer);
+    _longPressPanTimer = null;
+  }
+}
+
 function startAction(event) {
   if (event.button === 2) return; // Disallow right-clicks
 
@@ -1806,6 +1821,19 @@ function startAction(event) {
     return;
   }
 
+  // Start a long-press timer — if the user holds left-click without moving,
+  // switch into pan mode after LONG_PRESS_PAN_DELAY_MS milliseconds.
+  _longPressAnchorX = event.clientX;
+  _longPressAnchorY = event.clientY;
+  _longPressPanTimer = setTimeout(() => {
+    _longPressPanTimer = null;
+    // Only activate if we haven't released the mouse yet
+    if (isMouseDown) {
+      isMouseDown = false;
+      handlePanStart({ clientX: _longPressAnchorX, clientY: _longPressAnchorY });
+    }
+  }, LONG_PRESS_PAN_DELAY_MS);
+
   isMouseDown = true;
   handleAction(event);
 }
@@ -1813,6 +1841,15 @@ function startAction(event) {
 function moveAction(event) {
   // Update hover crosshair labels
   updateCoords(event);
+
+  // Cancel the long-press-to-pan timer if the pointer drifted too far
+  if (_longPressPanTimer !== null) {
+    const dx = event.clientX - _longPressAnchorX;
+    const dy = event.clientY - _longPressAnchorY;
+    if (dx * dx + dy * dy > LONG_PRESS_MOVE_THRESHOLD * LONG_PRESS_MOVE_THRESHOLD) {
+      cancelLongPressPan();
+    }
+  }
 
   // If we are currently panning, calculate new offset positions
   if (isPanning) {
@@ -1839,6 +1876,7 @@ function handleAction(event) {
 }
 
 function stopAction() {
+  cancelLongPressPan();
   isMouseDown = false;
 }
 
@@ -1914,6 +1952,7 @@ function handlePanEnd() {
 }
 
 function endAction(event) {
+  cancelLongPressPan();
   isMouseDown = false;
   if (isPanning) {
     isPanning = false;
