@@ -1171,9 +1171,19 @@ function clearCanvas() {
 }
 
 function exportPng() {
+  // bufferCanvas is 2000×2000 but the board is only BOARD_WIDTH×BOARD_HEIGHT.
+  // Export only the board region so the PNG isn't padded with blank rows/columns.
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width  = BOARD_WIDTH;
+  exportCanvas.height = BOARD_HEIGHT;
+  exportCanvas.getContext('2d').drawImage(
+    bufferCanvas,
+    0, 0, BOARD_WIDTH, BOARD_HEIGHT,   // source: board region of buffer
+    0, 0, BOARD_WIDTH, BOARD_HEIGHT    // dest: full export canvas
+  );
   const link = document.createElement('a');
   link.download = 'saint-pixels.png';
-  link.href = bufferCanvas.toDataURL('image/png');
+  link.href = exportCanvas.toDataURL('image/png');
   link.click();
 }
 

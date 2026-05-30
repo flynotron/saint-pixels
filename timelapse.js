@@ -491,13 +491,21 @@ function writeFrame() {
     buf = outCanvas.toBuffer('raw');
   }
 
-  drawWatermark(outCtx);
-  // Re-export after watermark (only meaningful when SCALE !== 1 or crop is on, but harmless)
   if (WATERMARK) {
-    buf = outCanvas.toBuffer('raw');
-    // Remove watermark from outCtx so next frame starts clean
-    outCtx.clearRect(0, OUT_H - FONT_SIZE * 2, OUT_W, FONT_SIZE * 2 + 10);
-    if (SCALE !== 1 || CROP_ENABLED) {
+    if (SCALE === 1 && !CROP_ENABLED) {
+      // Fast path: outCtx === ctx (the main board canvas). Drawing on it and
+      // then clearing would corrupt board state for subsequent frames.
+      // Composite the watermark onto a temporary canvas for this frame only.
+      const tmpCanvas = createCanvas(OUT_W, OUT_H);
+      const tmpCtx    = tmpCanvas.getContext('2d');
+      tmpCtx.drawImage(outCanvas, 0, 0);
+      drawWatermark(tmpCtx);
+      buf = tmpCanvas.toBuffer('raw');
+    } else {
+      // Separate outCanvas — safe to draw the watermark directly.
+      drawWatermark(outCtx);
+      buf = outCanvas.toBuffer('raw');
+      // Restore the output canvas for the next frame by redrawing the board region.
       outCtx.drawImage(
         canvas,
         CROP_X0, CROP_Y0, CROP_W, CROP_H,
