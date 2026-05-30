@@ -341,7 +341,7 @@ if (SCALE === 1) {
 
 // Pipe raw RGBA frames into ffmpeg
 // -f rawvideo: we supply uncompressed pixels
-// -pix_fmt rgba: matches canvas.toBuffer('raw')
+// -pix_fmt bgra: matches canvas.toBuffer('raw') which outputs BGRA, not RGBA
 // -s WxH: frame dimensions
 // -r FPS: interpret incoming frames at this rate
 // -i pipe:0: read from stdin
@@ -354,7 +354,7 @@ if (SCALE === 1) {
 const ffmpegArgs = [
   '-y',                              // overwrite output without asking
   '-f', 'rawvideo',
-  '-pix_fmt', 'rgba',
+  '-pix_fmt', 'bgra',
   '-s', `${OUT_W}x${OUT_H}`,
   '-r', String(FPS),
   '-i', 'pipe:0',
