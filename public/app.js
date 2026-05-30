@@ -824,7 +824,7 @@ function hexToRgba(hex) {
 }
 
 function drawCursor() {
-  if (!cursorPosition || tool === 'hand' || tool === 'none' || tool === 'ruler') return;
+  if (!cursorPosition || tool === 'hand' || tool === 'none') return;
 
   const dpr = window.devicePixelRatio || 1;
   const { x, y } = cursorPosition;
@@ -843,9 +843,21 @@ function drawCursor() {
   const sizeY = Math.floor((y + 1) * scale + oy) - py;
 
   // FIX: Inject the currently selected color into the cursor fill (Eraser shows white)
-  const activeColor = tool === 'eraser' ? '#ffffff' : (color || '#000000');
+  // For the ruler tool, flash the cell with a cyan tint.
+  // While drawing: highlight the live endpoint (current cursor = where the
+  // ruler end will be placed).  While idle: show where the first point goes.
+  const isRulerMode = tool === 'ruler';
+  const activeColor = isRulerMode
+    ? '#00e5ff'
+    : (tool === 'eraser' ? '#ffffff' : (color || '#000000'));
   const rgba = hexToRgba(activeColor);
-  overlayCtx.fillStyle = `rgba(${rgba[0]}, ${rgba[1]}, ${rgba[2]}, 0.45)`;
+  // Ruler uses a pulsing alpha so the highlight is clearly distinct from a
+  // normal brush cursor.  A simple sine on performance.now() gives a smooth
+  // flash without requiring a separate rAF loop.
+  const rulerAlpha = isRulerMode
+    ? 0.25 + 0.25 * Math.sin(performance.now() / 180)
+    : 0.45;
+  overlayCtx.fillStyle = `rgba(${rgba[0]}, ${rgba[1]}, ${rgba[2]}, ${rulerAlpha})`;
   overlayCtx.fillRect(px, py, sizeX, sizeY);
 
   // Ensure border stays exactly 1px thick at all zoom levels
@@ -1441,10 +1453,12 @@ function setTool(newTool) {
   
   // Manage active cursor styling layers directly on the viewport wrapper container
   if (tool === 'hand') {
+    rulerFlashStop();
     viewport.classList.add('tool-hand-active');
     canvas.style.cursor = 'grab';
     overlay.style.cursor = 'grab';
   } else if (tool === 'none') {
+    rulerFlashStop();
     viewport.classList.remove('tool-hand-active');
     viewport.classList.remove('tool-hand-dragging');
     canvas.style.cursor = 'default';
@@ -1454,6 +1468,8 @@ function setTool(newTool) {
     viewport.classList.remove('tool-hand-dragging');
     canvas.style.cursor = 'crosshair';
     overlay.style.cursor = 'crosshair';
+    // Start the cursor-flash animation loop for the ruler tool.
+    rulerFlashStart();
     // If ruler is in "drawing" mode (start set, not yet finished), keep that state
     // but reset to idle if there's no pending start (allow switching back freely)
   } else {
@@ -1461,11 +1477,31 @@ function setTool(newTool) {
     viewport.classList.remove('tool-hand-dragging');
     canvas.style.cursor = 'crosshair';
     overlay.style.cursor = 'crosshair';
+    // Stop the ruler flash loop when switching to any other tool.
+    rulerFlashStop();
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // ── PIXEL RULER ENGINE ──────────────────────────────────────────────
+// Cursor-flash rAF loop — keeps the sine-pulse animating even when the
+// mouse is stationary.  Runs only while the ruler tool is active.
+let _rulerFlashRaf = null;
+function rulerFlashStart() {
+  if (_rulerFlashRaf !== null) return; // already running
+  function tick() {
+    if (tool !== 'ruler') { _rulerFlashRaf = null; return; }
+    redraw();
+    _rulerFlashRaf = requestAnimationFrame(tick);
+  }
+  _rulerFlashRaf = requestAnimationFrame(tick);
+}
+function rulerFlashStop() {
+  if (_rulerFlashRaf !== null) {
+    cancelAnimationFrame(_rulerFlashRaf);
+    _rulerFlashRaf = null;
+  }
+}
 // State machine: idle → drawing (start set, line follows cursor) → locked (measurement shown)
 // Rulers persist across tool changes. A red trash icon on each ruler removes it.
 // ═══════════════════════════════════════════════════════════════════
