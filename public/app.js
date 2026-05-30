@@ -87,6 +87,19 @@ const GRID_DOT_SCREEN_PX = 3;
 // Connects to /api/stream and applies pixels placed by other users instantly.
 let _sseSource = null;
 
+// Batch rapid incoming remote pixels into a single rAF redraw.
+// When many players are painting simultaneously the SSE stream can deliver
+// dozens of pixel events per frame; calling redraw() for each one wastes CPU.
+let _remoteRedrawPending = false;
+function scheduleRemoteRedraw() {
+  if (_remoteRedrawPending) return;
+  _remoteRedrawPending = true;
+  requestAnimationFrame(() => {
+    _remoteRedrawPending = false;
+    redraw();
+  });
+}
+
 function connectSSE() {
   if (_sseSource) { _sseSource.close(); }
   const token = getStoredToken();
@@ -113,14 +126,14 @@ function connectSSE() {
       } else if (event.type === 'pixel') {
         if (event.user !== currentUser) {
           applyRemotePixel(event);
-          redraw();
+          scheduleRemoteRedraw();
         }
         // Notify leaderboard of any pixel placed (own or other players)
         window.dispatchEvent(new CustomEvent('sp-pixel-placed'));
       } else if (event.type === 'erase') {
         if (event.user !== currentUser) {
           paintPixel(event.x, event.y, 1, 'eraser', null);
-          redraw();
+          scheduleRemoteRedraw();
         }
       } else if (event.type === 'clients') {
         // Update live player count from server SSE (authoritative count)
@@ -1016,6 +1029,9 @@ function applyToolAtCell(x, y) {
       eyedropperBtns.forEach(btn => btn.classList.add('selected'));
     }
     _eyedropperJustFired = true;
+    // Cancel any pending long-press-pan timer so the mouseup for this same
+    // click doesn't try to place a pixel after the eyedropper pick.
+    cancelLongPressPan();
     // Delay the tool switch on touch devices so the touchend that triggered the
     // eyedropper pick has fully resolved before brush becomes active.
     // Without this delay, the same touch gesture that picked the color could
@@ -1172,13 +1188,15 @@ function applyRemotePixel(event) {
         ? normalizeHexColor(String(event.color))
         : '#000000';
   paintPixel(event.x, event.y, event.size || 1, remoteTool, remoteColor);
-  redraw();
+  // NOTE: callers are responsible for calling redraw() — do NOT call it here
+  // to avoid double-redraws when batching multiple remote pixels.
 }
 
 function handleRemoteEvent(event) {
   if (!event || !event.type) return;
   if (event.type === 'pixel') {
     applyRemotePixel(event);
+    redraw();
   } else if (event.type === 'clear') {
     clearCanvasLocal(false);
   } else if (event.type === 'palette') {
@@ -1894,13 +1912,16 @@ function handleAction(event) {
 
 function stopAction(event) {
   // If the long-press timer is still pending, this was a short click (not a pan).
-  // Cancel the timer and place the pixel now.
+  // Cancel the timer and place the pixel now — unless the eyedropper just fired
+  // on this same click, in which case we only picked a color, not placed a pixel.
   const wasShortClick = _longPressPanTimer !== null;
   cancelLongPressPan();
 
-  if (wasShortClick && isMouseDown && !isPanning) {
+  if (wasShortClick && isMouseDown && !isPanning && !_eyedropperJustFired) {
     handleAction(event);
   }
+  // Clear the flag so the next independent click works normally.
+  _eyedropperJustFired = false;
 
   isMouseDown = false;
 }
@@ -1980,9 +2001,11 @@ function endAction(event) {
   const wasShortClick = _longPressPanTimer !== null;
   cancelLongPressPan();
   
-  if (wasShortClick && isMouseDown && !isPanning) {
+  if (wasShortClick && isMouseDown && !isPanning && !_eyedropperJustFired) {
     handleAction(event);
   }
+  // Clear the flag so the next independent click works normally.
+  _eyedropperJustFired = false;
 
   isMouseDown = false;
   if (isPanning) {
@@ -2047,14 +2070,22 @@ canvas.addEventListener('mousemove', event => {
 
   const { x, y } = getCanvasCoords(event.clientX, event.clientY);
   updateStatus(x, y);
+
+  // Skip redraw when the cursor is still on the same board pixel — avoids
+  // thrashing the canvas on sub-pixel mouse movements (e.g. high-DPI mice).
+  const cellChanged = !cursorPosition || cursorPosition.x !== x || cursorPosition.y !== y;
   cursorPosition = { x, y };
 
   // Update live ruler end if ruler is in drawing state
   if (tool === 'ruler') {
     rulerUpdateLiveEnd(x, y);
+    redraw(); // ruler always needs redraw for the pulsing cursor
+    return;
   }
 
-  redraw();
+  if (cellChanged || isMouseDown) {
+    redraw();
+  }
 });
 
 canvas.addEventListener('mouseup', event => {

@@ -124,10 +124,8 @@
   ol, ul, menu {
     list-style: none;
   }
-  img, svg, video, canvas, audio, iframe, embed, object {
-    display: flex;         /* Makes it a flex container */
-    align-items: center;   /* Vertically centers the content */
-    justify-content: center; /* Optionally centers horizontally */
+  img, svg, video, audio, iframe, embed, object {
+    display: block;
   }
   img, video {
     max-width: 100%;
@@ -1010,16 +1008,17 @@
 }
 #canvas {
   z-index: 1;
+  will-change: transform;
 }
 #grid {
   z-index: 2;
   pointer-events: none;
+  will-change: transform;
 }
 #overlay {
   z-index: 3;
   pointer-events: none;
-  will-change: contents;
-  contain: strict;
+  will-change: transform;
 }
 .toggle-btn.active, .tool.active {
   background-color: rgba(56,189,248,0.28) !important;
@@ -1709,10 +1708,10 @@ header.flex {
     border-radius: 20px;
   }
   .viewport canvas {
-    will-change: auto;
+    will-change: transform;
   }
   #overlay {
-    will-change: contents;
+    will-change: transform;
   }
 }
 @media (max-height: 500px) and (orientation: landscape) {
