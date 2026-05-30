@@ -2701,6 +2701,7 @@ header.flex {
 .brand-reddit:hover {
   transform: translateY(-1px);
 }
+.sp-ruler-label {
   position: absolute;
   z-index: 9000;
   transform: translate(-50%, -50%);

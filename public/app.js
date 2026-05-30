@@ -1884,7 +1884,7 @@ function startAction(event) {
     // Only activate if we haven't released the mouse yet
     if (isMouseDown) {
       isMouseDown = false;
-      handlePanStart({ clientX: _longPressAnchorX, clientY: _longPressAnchorY });
+      handlePanStart({ clientX: lastPointerClientX, clientY: lastPointerClientY });
     }
   }, LONG_PRESS_PAN_DELAY_MS);
 
@@ -1895,7 +1895,8 @@ function startAction(event) {
 
 function moveAction(event) {
   // Update hover crosshair labels
-  updateCoords(event);
+  const _coordPos = getCanvasCoords(event.clientX, event.clientY);
+  updateStatus(_coordPos.x, _coordPos.y);
 
   // Cancel the long-press-to-pan timer if the pointer drifted too far.
   // Once cancelled by movement this becomes a normal draw drag — fire
