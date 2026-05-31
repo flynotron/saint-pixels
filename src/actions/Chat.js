@@ -120,8 +120,7 @@ const STRIP_CTRL_RE = /[\u0000-\u0008\u000B-\u001F\u007F\u0080-\u009F\u00AD\u200
  * Using single-character sanitization avoids incomplete multi-character
  * replacement edge-cases where unsafe tag-shaped content can reappear.
  */
-const STRIP_TAGS_RE = /[<>]/g;
-
+const STRIP_TAGS_RE = /<[^>]{0,2048}?>/g;
 /**
  * URL / link detection — rejects messages that contain bare URLs, href= values,
  * or common phishing schemes.  Covers:
@@ -164,9 +163,16 @@ function isSpammy(msg) {
 }
 
 function sanitiseMessage(raw) {
+  // Bail out early if the string looks like a tag-flooding attack.
+  // A legitimate 200-char message won't have more than a handful of '<'.
+  if ((raw.match(/</g) || []).length > 10) {
+    // Strip ALL '<' characters outright — no regex needed
+    raw = raw.replace(/</g, '');
+  }
+
   return raw
-    .replace(STRIP_CTRL_RE, '') // strip invisible Unicode
-    .replace(STRIP_TAGS_RE, '') // strip HTML/XML tags
+    .replace(STRIP_CTRL_RE, '')
+    .replace(STRIP_TAGS_RE, '')
     .trim();
 }
 
