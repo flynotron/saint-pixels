@@ -2890,19 +2890,26 @@ viewport.addEventListener("touchend", (e) => {
      // as clientY so the offset doesn't overshoot at non-100% browser zoom.
      const dpr = window.devicePixelRatio || 1;
      const vvScale = (window.visualViewport && window.visualViewport.scale) || 1;
-     // iOS Safari reports clientY at the top of the contact ellipse on older
-     // versions, but the radiusY value it gives is a fixed hardware constant
-     // (~11 physical px) that doesn't track the actual touch centroid — it
-     // overcorrects especially when the browser is pinch-zoomed out.
-     // We detect iOS Safari and skip the adjustment; the tap lands close enough
-     // to centre already. On other platforms we apply a conservative cap (max
-     // 8 CSS px) so any residual error stays small.
+     // Both iOS and Android tend to report clientY at or near the top of the
+     // contact ellipse rather than its centroid, making the placed pixel appear
+     // below where the finger actually landed.
+     //
+     // iOS: radiusY is a fixed hardware constant (~11 physical px) that
+     // overcorrects at low zoom, so we apply a small fixed upward nudge instead.
+     //
+     // Android/Chrome: radiusY is in physical pixels; half of it (capped at 10
+     // CSS px) brings us to the contact centroid reliably.
      const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
      let adjustedClientY = touch.clientY;
-     if (!isIOS) {
+     if (isIOS) {
+       // Small fixed upward nudge for iOS — enough to hit the centroid without
+       // overshooting on pinch-zoomed views.
+       adjustedClientY = touch.clientY - 4;
+     } else {
+       // Android: radiusY in physical px → CSS px, then take half (centroid).
        const radiusY = (touch.radiusY || 0) / dpr / vvScale;
-       adjustedClientY = touch.clientY - Math.min(radiusY, 8);
+       adjustedClientY = touch.clientY - Math.min(radiusY * 0.5, 10);
      }
      const coords = getCanvasCoords(touch.clientX, adjustedClientY);
      // Snap cursorPosition to the exact tap location BEFORE placing.

@@ -1246,7 +1246,7 @@ header.flex {
     overflow: hidden !important;
     display: block !important;
   }
-  .brand-tagline, .brand-contribute, .brand-discord {
+  .brand-tagline, .brand-contribute, .brand-discord, .brand-reddit, .brand-donate {
     display: none !important;
   }
   body > div.app-shell header, header.flex {
@@ -1734,7 +1734,7 @@ header.flex {
     height: 100dvh;
     overflow: hidden;
   }
-  .brand-tagline, .brand-contribute, .brand-discord {
+  .brand-tagline, .brand-contribute, .brand-discord, .brand-reddit, .brand-donate {
     display: none !important;
   }
   header.flex {
