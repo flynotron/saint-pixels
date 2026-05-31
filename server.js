@@ -144,7 +144,7 @@ app.get('/', indexLimiter, (req, res) => {
 // express.static only serves files that physically exist at the exact path
 // requested; without these routes, a missing root-level favicon.ico returns 404
 // and no icon appears in the tab.
-app.get('/favicon.ico', (req, res) => {
+app.get('/favicon.ico', indexLimiter, (req, res) => {
   const p = path.join(__dirname, 'public', 'images', 'favicon.ico');
   if (require('fs').existsSync(p)) {
     res.setHeader('Cache-Control', 'public, max-age=86400');
@@ -153,7 +153,7 @@ app.get('/favicon.ico', (req, res) => {
     res.status(204).end(); // No content — silences the 404 without an error
   }
 });
-app.get('/favicon.svg', (req, res) => {
+app.get('/favicon.svg', indexLimiter, (req, res) => {
   const p = path.join(__dirname, 'public', 'images', 'favicon.svg');
   if (require('fs').existsSync(p)) {
     res.setHeader('Cache-Control', 'public, max-age=86400');
@@ -163,7 +163,7 @@ app.get('/favicon.svg', (req, res) => {
     res.status(204).end();
   }
 });
-app.get('/apple-touch-icon.png', (req, res) => {
+app.get('/apple-touch-icon.png', indexLimiter, (req, res) => {
   const p = path.join(__dirname, 'public', 'images', 'apple-touch-icon.png');
   if (require('fs').existsSync(p)) {
     res.setHeader('Cache-Control', 'public, max-age=86400');
