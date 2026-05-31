@@ -44,15 +44,12 @@ app.use((req, res, next) => {
         // chat input is sanitised server-side and rendered as textContent (not
         // innerHTML), so injected payloads cannot reach eval().
         "'unsafe-eval'",
-        // 'unsafe-inline' is required by hCaptcha — it dynamically injects inline
-        // <script> blocks that cannot be given a nonce. Mitigated by hCaptcha's
-        // own domains being explicitly allowlisted above, and our server-side
-        // content sanitisation blocking script-shaped user input.
-        "'unsafe-inline'",
-        // Hash of a known inline script injected by hCaptcha at runtime.
-        // Browsers that support hash-based allowlisting will use this instead
-        // of relying on 'unsafe-inline' alone for that specific block.
-        "'sha256-9UXr/1Pci7/z9eol8dlV9btiS46Z6Y8vY0nCbXdSr4I='",
+        // NOTE: 'unsafe-inline' is intentionally OMITTED here. Per the W3C CSP
+        // spec, when a nonce-source is present in script-src, browsers
+        // automatically ignore 'unsafe-inline' — keeping it only produces the
+        // "Ignoring 'unsafe-inline'" console warning without any security benefit.
+        // hCaptcha's inline scripts run inside its own sandboxed iframe, so they
+        // are governed by the iframe's CSP, not this page's script-src.
       ],
       // Explicitly block inline event handlers (onsubmit, onclick attrs).
       // index.html no longer uses any, so this is safe.
