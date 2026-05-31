@@ -2462,7 +2462,14 @@ window.addEventListener('storage', event => {
 });
 
 window.addEventListener('beforeunload', () => {
-  // nothing to clean up for live count — SSE disconnect is handled server-side
+  // Cleanly close the SSE connection before the page unloads.
+  // Without this, the browser logs "connection was interrupted while the page
+  // was loading" because the EventSource is torn down abruptly by navigation
+  // rather than by an explicit close() call.
+  if (_sseSource) {
+    _sseSource.close();
+    _sseSource = null;
+  }
 });
 
 /**
