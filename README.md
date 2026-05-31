@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/pngs/1180x100github_title.png" alt="Saint Pixels Title Screen">
+  <img src="images/1180x100github_title.png" alt="Saint-Pixels">
 </p>
 
 ## About
