@@ -116,11 +116,11 @@ setInterval(() => {
 const STRIP_CTRL_RE = /[\u0000-\u0008\u000B-\u001F\u007F\u0080-\u009F\u00AD\u200B-\u200F\u2028-\u202E\u2060-\u2064\uFEFF\uFFF9-\uFFFF]/g;
 
 /**
- * Strip any HTML / XML tags from the message.
- * Defence-in-depth: the client already uses textContent, but this ensures
- * nothing tag-shaped ever reaches the database or the SSE broadcast.
+ * Strip HTML/XML tag delimiters from the message.
+ * Using single-character sanitization avoids incomplete multi-character
+ * replacement edge-cases where unsafe tag-shaped content can reappear.
  */
-const STRIP_TAGS_RE = /<[^>]*>/g;
+const STRIP_TAGS_RE = /[<>]/g;
 
 /**
  * URL / link detection — rejects messages that contain bare URLs, href= values,
